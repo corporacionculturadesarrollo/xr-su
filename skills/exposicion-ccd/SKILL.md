@@ -62,6 +62,12 @@ slash: true
 
 - `C:\Users\kutzm\Desktop\unclavo_soc.glb` (4,85 MB) — modelo 3D candidato; verificar si aplica al proyecto antes de usarlo.
 
+## Herramientas MCP
+
+- Servidor **`spheroid`** registrado en OpenCode (global): `status`, `list_files`, `read_file`, `save_file`, `publish`, `list_builds`.
+- La nube queda **inactiva** hasta configurar `SPHEROID_API_BASE`, `SPHEROID_TOKEN` y `SPHEROID_FILE_IDS` — `status` lista lo que falta (ver `xr-su\mcp-spheroid\README.md`).
+- `publish` solo con aprobación explícita del usuario.
+
 ## Fuera de aquí
 
 Sintaxis, patrones de código y flujo general de Spheroid → skill **Desarrollo XR con Spheroid Script**.
