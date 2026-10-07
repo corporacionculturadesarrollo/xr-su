@@ -5,6 +5,7 @@
     "./GetStationsAction.spheroid"
   ],
   "client": [
+    "./Sun.spheroid",
     "./Client.spheroid"
   ],
   "version": "1.0.0"

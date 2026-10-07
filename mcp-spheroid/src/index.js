@@ -9,8 +9,8 @@
  *             Mientras falte configuración, las herramientas de nube devuelven una
  *             lista exacta de lo que falta en vez de fallar a ciegas.
  *
- * El detalle fino de la API (URL base, auth, IDs completos de archivo) no quedó
- * registrado al pausar el proyecto: ver README.md §"Qué falta".
+ * Endpoints y formas de la API verificados en vivo (incluida la subida
+ * binaria: api/file/upload con campos "files" + "metadata"): ver README.md.
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -33,19 +33,46 @@ const cfg = {
   endpoints: {
     get: process.env.SPHEROID_ENDPOINT_GET || "api/file/content/get",
     save: process.env.SPHEROID_ENDPOINT_SAVE || "api/file/content/save",
+    create: process.env.SPHEROID_ENDPOINT_CREATE || "api/file/create",
+    del: process.env.SPHEROID_ENDPOINT_DELETE || "api/file/delete",
+    upload: process.env.SPHEROID_ENDPOINT_UPLOAD || "api/file/upload",
+    directory: process.env.SPHEROID_ENDPOINT_DIRECTORY || "api/directory/list",
+    details: process.env.SPHEROID_ENDPOINT_DETAILS || "api/app/details",
+    startup: process.env.SPHEROID_ENDPOINT_STARTUP || "api/publish/startup",
     publish: process.env.SPHEROID_ENDPOINT_PUBLISH || "api/publish/publish",
-    builds: process.env.SPHEROID_ENDPOINT_BUILDS || "",
   },
   localProject:
     process.env.SPHEROID_LOCAL_PROJECT ||
     path.resolve(__dirname, "..", "..", "exposicion-ccd"),
 };
 
-let fileIds = {};
+// IDs: los del entorno + los creados en sesiones previas (file-ids.json gana).
+const RUTA_IDS_LOCAL = path.resolve(__dirname, "..", "file-ids.json");
+
+function leerIdsEnv() {
+  try {
+    return JSON.parse(process.env.SPHEROID_FILE_IDS || "{}");
+  } catch {
+    return {};
+  }
+}
+let idsLocal = {};
 try {
-  fileIds = JSON.parse(process.env.SPHEROID_FILE_IDS || "{}");
+  idsLocal = JSON.parse(await readFile(RUTA_IDS_LOCAL, "utf8"));
 } catch {
-  fileIds = {};
+  idsLocal = {};
+}
+const fileIds = { ...leerIdsEnv(), ...idsLocal };
+
+/** Persiste un id nuevo (p. ej. archivo recién creado) para próximas sesiones. */
+async function guardarIdLocal(pathArchivo, id) {
+  fileIds[pathArchivo] = id;
+  idsLocal[pathArchivo] = id;
+  try {
+    await writeFile(RUTA_IDS_LOCAL, JSON.stringify(idsLocal, null, 2) + "\n", "utf8");
+  } catch (e) {
+    console.error(`No pude guardar ${RUTA_IDS_LOCAL}: ${e.message ?? e}`);
+  }
 }
 
 /** Pendientes para poder trabajar contra la nube. */
@@ -53,8 +80,8 @@ function pendientesNube() {
   const faltan = [];
   if (!cfg.apiBase) faltan.push("SPHEROID_API_BASE (URL base de la API de Spheroid)");
   if (!cfg.token) faltan.push("SPHEROID_TOKEN (token de acceso de Spheroid)");
-  if (Object.keys(fileIds).length === 0)
-    faltan.push("SPHEROID_FILE_IDS (mapa JSON path → id completo de cada archivo)");
+  // Los ids ya no bloquean: save_file crea el archivo si no existe y persiste
+  // el id en file-ids.json; read_file cae a la copia local avisando.
   return faltan;
 }
 
@@ -62,8 +89,9 @@ function faltaId(pathArchivo) {
   return !fileIds[pathArchivo];
 }
 
-function cabeceras() {
-  const h = { "Content-Type": "application/json" };
+function cabeceras(conTipoJson = true) {
+  const h = {};
+  if (conTipoJson) h["Content-Type"] = "application/json";
   if (cfg.token) {
     h[cfg.authHeader] = cfg.authScheme ? `${cfg.authScheme} ${cfg.token}` : cfg.token;
   }
@@ -80,18 +108,72 @@ async function llamarNube(endpoint, cuerpo) {
       body: JSON.stringify(cuerpo),
     });
     const texto = await res.text();
+    let dato = null;
     let detalle = texto;
     try {
-      detalle = JSON.stringify(JSON.parse(texto), null, 2);
+      dato = JSON.parse(texto);
+      detalle = JSON.stringify(dato, null, 2);
     } catch {
       /* se devuelve tal cual */
     }
     return {
       ok: res.ok,
+      dato,
       texto: `POST ${url} → HTTP ${res.status}\n\n${detalle}`,
     };
   } catch (e) {
-    return { ok: false, texto: `POST ${url} → error de red: ${e.message ?? e}` };
+    return { ok: false, dato: null, texto: `POST ${url} → error de red: ${e.message ?? e}` };
+  }
+}
+
+/** GET de nube (p. ej. api/app/details). Igual que llamarNube pero con query. */
+async function llamarNubeGet(endpoint, params) {
+  const url = `${cfg.apiBase}/${endpoint}?${new URLSearchParams(params)}`;
+  try {
+    const res = await fetch(url, { method: "GET", headers: cabeceras(false) });
+    const t = await res.text();
+    let dato = null;
+    let detalle = t;
+    try {
+      dato = JSON.parse(t);
+      detalle = JSON.stringify(dato, null, 2);
+    } catch {
+      /* se devuelve tal cual */
+    }
+    return { ok: res.ok, dato, texto: `GET ${url} → HTTP ${res.status}\n\n${detalle}` };
+  } catch (e) {
+    return { ok: false, dato: null, texto: `GET ${url} → error de red: ${e.message ?? e}` };
+  }
+}
+
+/**
+ * Subida binaria multipart (api/file/upload).
+ * Forma real de Demiurge (extraída del bundle): campo "files" con el archivo
+ * y "metadata" con JSON {appId, directoryId}. Sin Content-Type manual
+ * (fetch pone el boundary del multipart).
+ */
+async function subirNube(fileBytes, fileName, directoryId = null) {
+  const fd = new FormData();
+  fd.append("files", new Blob([fileBytes]), fileName);
+  fd.append("metadata", JSON.stringify({ appId: cfg.appId, directoryId }));
+  try {
+    const res = await fetch(`${cfg.apiBase}/${cfg.endpoints.upload}`, {
+      method: "POST",
+      headers: cabeceras(false),
+      body: fd,
+    });
+    const t = await res.text();
+    let dato = null;
+    let detalle = t;
+    try {
+      dato = JSON.parse(t);
+      detalle = JSON.stringify(dato, null, 2);
+    } catch {
+      /* se devuelve tal cual */
+    }
+    return { ok: res.ok, dato, texto: `POST ${cfg.endpoints.upload} → HTTP ${res.status}\n\n${detalle}` };
+  } catch (e) {
+    return { ok: false, dato: null, texto: `POST ${cfg.endpoints.upload} → error de red: ${e.message ?? e}` };
   }
 }
 
@@ -136,8 +218,8 @@ server.registerTool(
       `  API base:  ${cfg.apiBase ? "sí" : "no"}`,
       `  Token:     ${cfg.token ? "sí" : "no"}`,
       `  App ID:    ${cfg.appId}`,
-      `  IDs de archivo: ${Object.keys(fileIds).length} mapeado(s)`,
-      `  Endpoints: get=${cfg.endpoints.get} · save=${cfg.endpoints.save} · publish=${cfg.endpoints.publish} · builds=${cfg.endpoints.builds || "(sin configurar)"}`,
+      `  IDs de archivo: ${Object.keys(fileIds).length} mapeado(s) · locales: ${Object.keys(idsLocal).length} en file-ids.json`,
+      `  Endpoints: get · save · create · delete · upload · directory · details · startup · publish (defaults verificados)`,
     ];
     if (faltan.length) {
       lineas.push("", "Para activar la nube falta:");
@@ -155,10 +237,27 @@ server.registerTool(
   "list_files",
   {
     title: "Listar archivos del proyecto",
-    description: "Lista los archivos de la copia local del proyecto ExposicionCCD.",
-    inputSchema: {},
+    description:
+      "Lista los archivos del proyecto ExposicionCCD. origen='nube' (por defecto) usa api/directory/list (fuente de verdad); origen='local' barre la copia del proyecto.",
+    inputSchema: {
+      origen: z
+        .enum(["nube", "local"])
+        .default("nube")
+        .describe("nube = api/directory/list; local = copia del proyecto"),
+    },
   },
-  async () => {
+  async ({ origen }) => {
+    if (origen !== "local") {
+      const faltan = pendientesNube();
+      if (faltan.length > 0) {
+        return texto("Nube no configurada:\n" + faltan.map((f) => `  - ${f}`).join("\n"), true);
+      }
+      const r = await llamarNube(cfg.endpoints.directory, { appId: cfg.appId });
+      if (!r.ok || !Array.isArray(r.dato?.items)) return texto(r.texto, true);
+      const items = r.dato.items;
+      const lineas = items.map((i) => `${i.name}  (${i.size} B, fileType ${i.fileType}, ${i.id})`);
+      return texto(`[nube] ${items.length} archivo(s)\n\n${lineas.join("\n")}`);
+    }
     try {
       const { readdir } = await import("node:fs/promises");
       const salida = [];
@@ -248,15 +347,22 @@ server.registerTool(
         true,
       );
       }
-    if (faltaId(pathArchivo)) {
-      return texto(
-        `Sin ID de nube para "${pathArchivo}". Añádelo a SPHEROID_FILE_IDS (path → id completo).`,
-        true,
-      );
+    let fileId = fileIds[pathArchivo];
+    if (!fileId) {
+      // Archivo nuevo: se crea en la nube (árbol plano, nombre solo) y el id
+      // se persiste en file-ids.json para las próximas sesiones.
+      const fileName = path.basename(pathArchivo);
+      const rc = await llamarNube(cfg.endpoints.create, { appId: cfg.appId, fileName });
+      const nuevoId = rc.dato?.file?.id;
+      if (!rc.ok || rc.dato?.success === false || !nuevoId) {
+        return texto(`No pude crear "${fileName}" en la nube (${pathArchivo}):\n${rc.texto}`, true);
+      }
+      await guardarIdLocal(pathArchivo, nuevoId);
+      fileId = nuevoId;
     }
     const r = await llamarNube(cfg.endpoints.save, {
       appId: cfg.appId,
-      fileId: fileIds[pathArchivo],
+      fileId,
       content,
     });
     return texto(
@@ -266,15 +372,25 @@ server.registerTool(
   },
 );
 
+const LAYER_DEFECTO = "5917fe68-57fb-497d-ac35-1ce4412a6aca";
+
 server.registerTool(
   "publish",
   {
     title: "Publicar la app (build)",
     description:
-      "Publica (build) la app ExposicionCCD en Spheroid. HERRAMIENTA DESTRUCTIVA/EN PRODUCCIÓN: solo ejecutar tras aprobación explícita del usuario. Requiere configuración de nube completa.",
-    inputSchema: {},
+      "Publica (build) la app ExposicionCCD en Spheroid en 2 fases (publish/startup → publish/publish). HERRAMIENTA DESTRUCTIVA/EN PRODUCCIÓN: solo ejecutar tras aprobación explícita del usuario.",
+    inputSchema: {
+      layerIds: z
+        .array(z.string())
+        .default([LAYER_DEFECTO])
+        .describe("Capas a publicar (por defecto la capa ExposicionCCD)"),
+      isDebug: z.boolean().default(true).describe("Build de depuración"),
+      client: z.boolean().default(true).describe("Publicar cliente"),
+      server: z.boolean().default(true).describe("Publicar servidor"),
+    },
   },
-  async () => {
+  async ({ layerIds, isDebug, client, server: publicarServidor }) => {
     const faltan = pendientesNube();
     if (faltan.length > 0) {
       return texto(
@@ -282,8 +398,19 @@ server.registerTool(
         true,
       );
     }
-    const r = await llamarNube(cfg.endpoints.publish, { appId: cfg.appId });
-    return texto(r.texto, !r.ok);
+    const s1 = await llamarNube(cfg.endpoints.startup, { appId: cfg.appId });
+    if (!s1.ok) return texto(`FASE 1 (publish/startup) falló:\n${s1.texto}`, true);
+    const s2 = await llamarNube(cfg.endpoints.publish, {
+      appId: cfg.appId,
+      publishClient: client,
+      publishServer: publicarServidor,
+      isDebug,
+      layerIds,
+    });
+    return texto(
+      `FASE 1 — publish/startup:\n${s1.texto}\n\nFASE 2 — publish/publish:\n${s2.texto}`,
+      !s2.ok,
+    );
   },
 );
 
@@ -292,22 +419,100 @@ server.registerTool(
   {
     title: "Listar builds de la app",
     description:
-      "Devuelve los builds publicados (1–35 según el histórico). Necesita SPHEROID_ENDPOINT_BUILDS configurado (endpoint no documentado).",
+      "Devuelve los builds publicados leyendo GET api/app/details → publications (el historial de builds no tiene endpoint propio).",
     inputSchema: {},
   },
   async () => {
     const faltan = pendientesNube();
-    if (faltan.length > 0 || !cfg.endpoints.builds) {
+    if (faltan.length > 0) {
+      return texto("Nube no configurada:\n" + faltan.map((f) => `  - ${f}`).join("\n"), true);
+    }
+    const r = await llamarNubeGet(cfg.endpoints.details, { appId: cfg.appId });
+    if (!r.ok) return texto(r.texto, true);
+    const pubs = r.dato?.app?.publications ?? r.dato?.publications;
+    if (!Array.isArray(pubs)) return texto(r.texto, true);
+    const lineas = pubs.map((p, i) => {
+      const build = p?.appVersion?.build ?? "?";
+      const extra = p?.appVersion ? JSON.stringify(p.appVersion) : "";
+      return `#${i + 1} build ${build}  ${extra}`;
+    });
+    return texto(
+      `Publicaciones: ${pubs.length} (la última es la vigente)\n\n${lineas.join("\n")}`,
+      false,
+    );
+  },
+);
+
+server.registerTool(
+  "upload_file",
+  {
+    title: "Subir un archivo binario",
+    description:
+      "Sube un archivo binario (p. ej. assets/sombra_sol.glb) a la nube con api/file/upload (multipart: files + metadata). El archivo debe estar en la copia local del proyecto. Subir a la nube requiere aprobación del usuario.",
+    inputSchema: {
+      path: z.string().describe('Ruta local relativa, p. ej. "assets/sombra_sol.glb"'),
+      fileName: z
+        .string()
+        .optional()
+        .describe("Nombre en la nube (árbol plano); por defecto el nombre del archivo local"),
+    },
+  },
+  async ({ path: pathArchivo, fileName }) => {
+    const faltan = pendientesNube();
+    if (faltan.length > 0) {
+      return texto("Nube no configurada:\n" + faltan.map((f) => `  - ${f}`).join("\n"), true);
+    }
+    let bytes;
+    try {
+      bytes = await readFile(rutaLocalSegura(pathArchivo));
+    } catch (e) {
+      return texto(`No pude leer "${pathArchivo}": ${e.message ?? e}`, true);
+    }
+    const nombre = fileName || path.basename(pathArchivo);
+    const r = await subirNube(bytes, nombre, null);
+    const f = r.dato?.uploadedFiles?.[0];
+    if (r.ok && f) {
+      await guardarIdLocal(pathArchivo, f.id);
       return texto(
-        [
-          ...(faltan.length ? faltan.map((f) => `  - ${f}`) : []),
-          ...(cfg.endpoints.builds ? [] : ["SPHEROID_ENDPOINT_BUILDS (sin configurar)"]),
-        ].join("\n"),
+        `${r.texto}\n\nSubido: ${f.name} → id ${f.id} (${f.size} B, fileType ${f.fileType}).\n` +
+          `id guardado en file-ids.json (read_file/save_file lo verán).\n` +
+          `(recordar: NO está publicado hasta hacer publish, con aprobación)`,
+        false,
+      );
+    }
+    return texto(r.texto, true);
+  },
+);
+
+server.registerTool(
+  "delete_file",
+  {
+    title: "Borrar un archivo de la nube",
+    description:
+      "Borra un archivo de la nube (api/file/delete). HERRAMIENTA DESTRUCTIVA: solo con aprobación explícita del usuario.",
+    inputSchema: {
+      path: z
+        .string()
+        .optional()
+        .describe('Ruta local del archivo (p. ej. "assets/x.glb"); usa su id de file-ids.json'),
+      fileId: z.string().optional().describe("id directo (si no se pasa path)"),
+    },
+  },
+  async ({ path: pathArchivo, fileId }) => {
+    const faltan = pendientesNube();
+    if (faltan.length > 0) {
+      return texto("Nube no configurada:\n" + faltan.map((f) => `  - ${f}`).join("\n"), true);
+    }
+    const id = fileId || (pathArchivo ? fileIds[pathArchivo] : null);
+    if (!id) {
+      return texto(
+        "Falta fileId (o un path con id conocido en file-ids.json / SPHEROID_FILE_IDS).",
         true,
       );
     }
-    const r = await llamarNube(cfg.endpoints.builds, { appId: cfg.appId });
-    return texto(r.texto, !r.ok);
+    const r = await llamarNube(cfg.endpoints.del, { appId: cfg.appId, fileId: id });
+    const okInterno = r.dato?.success === true;
+    return texto(r.texto, !r.ok || !okInterno);
   },
 );
 

@@ -60,10 +60,21 @@ slash: true
 - `C:\Users\kutzm\Documents\GitHub\xr-su\exposicion-ccd\` — **sincronizado con la nube el 7 oct 2026** (incluye `assets/unclavo_soc.glb`; `estacion.glb` retirado).
 - Nube = fuente de verdad: leer → editar → `save` → `publish` con visto bueno.
 
+## Fase sombra solar (prototipo Vía A — 7 oct 2026, LOCAL, sin subir ni publicar)
+
+- Estudio: Zhu et al. 2023 (ISPRS IJGI 12(8):324) + NOAA simplificado → detallado en el skill **Desarrollo XR con Spheroid Script** (límites de API, ejes, patrón solar).
+- Archivos del prototipo en staging (la nube **aún no** los tiene):
+  - `client/Sun.spheroid` (nuevo; ya listado en `app.json`): módulo solar + configuración (`sombraY=0.05`, `sombraLargo=1.1`, `sombraAncho=0.75`, `ajusteGiroSol=0.0`, `horaSolUtc=15.0`, `diaAnioSol=280.0`, `modoDemoSol=true`).
+  - `client/Client.spheroid`: `sombraModel`, carga en `loadAssets`, sombra por estación en `addStation`, `aplicarSol`/`refrescarSombras`, `Timer.schedule(10 s)` (avanza 1 h por tick en demo), **los 5 ACT loops del panel filtran `child.model == stationModel`** (si no, GUARDAR guardaría la y de la sombra), `println("RELOJ:" + Date())`.
+  - `assets/sombra_sol.glb` (nuevo, 6.460 B; generado por script con vertex-color alpha + BLEND).
+  - `app.json`: `client` = `["./Sun.spheroid", "./Client.spheroid"]`.
+- **Pendiente (visto bueno)**: subir a nube (create `Sun.spheroid` + save ×3 + `upload_file` del GLB) → **publish build 37** → **probar en dispositivo**: calibrar `ajusteGiroSol` (puede ser 0/180/espejo) y `sombraY` (¿suelo real en y=0?), revisar que `sombra_sol.glb` carga (fileType 3, igual que `unclavo_soc.glb`) y leer `RELOJ:` en consola.
+- Hora real: **imposible con la API actual** (ver límites en el skill de sintaxis); placeholders + modo demo. Fase 2: GLB tintados por franja + feature requests a Spheroid (API de hora y de luz ambiental).
+
 ## Herramientas MCP
 
 - Servidor `spheroid` **configurado en nube** (opencode.json global: API base, token, 8 IDs, endpoints): `status` → *Nube CONFIGURADA*; `read_file` y `save_file` verificados en vivo.
-- `publish` solo con aprobación explícita. `list_builds` no tiene endpoint: usar `app/details → publications`.
+- `publish` solo con aprobación explícita (ahora en **2 fases** dentro de la herramienta). `list_builds` resuelto (vía `GET app/details` → `app.publications`; vigente = build 36). Nuevas: `list_files` en nube, `upload_file` (multipart `files`+`metadata`), `delete_file`, y `save_file` crea archivos nuevos guardando el id en `mcp-spheroid/file-ids.json`.
 
 ## Otros apps de la cuenta
 

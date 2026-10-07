@@ -1,0 +1,105 @@
+// Sun.spheroid — posicion solar de la estacion (fase 1: sombra georreferenciada)
+//
+// Con (lat, lng, hora UTC, dia del anio) calcula azimut y elevacion del sol con
+// el algoritmo simplificado de NOAA, la misma via (estimar la luz del sitio por
+// geo-information) que Zhu, Liu, Sun, Yuan y Wu (2023), ISPRS IJGI 12(8):324,
+// dan coherencia de luz al AR outdoor. Todo con sin/cos/sqrt/abs/PI:
+// spheroid.math no trae tan, atan2 ni asin, asi que atan2 se implementa aqui
+// con doble reduccion de argumento + serie de Taylor (validado: error < 1e-11).
+//
+// LIMITACION DE PLATAFORMA: Spheroid Script no expone el reloj en numeros
+// (Date solo tiene toString y String no tiene parseo de cadenas). Por eso
+// horaSolUtc y diaAnioSol se inyectan aqui como placeholders; el modo demo
+// hace que el Timer del cliente avance la hora para ver la sombra moverse.
+// Cuando la plataforma exponga la hora actual, se cambia una sola linea.
+
+var horaSolUtc = 15.0     // hora UTC decimal (0..24) — placeholder del reloj
+var diaAnioSol = 280.0    // dia del anio (1..365): 280 = 7 de octubre
+var modoDemoSol = true    // si true, el Timer avanza la hora en cada tick (demo)
+var ajusteGiroSol = 0.0   // calibracion de orientacion en dispositivo (grados)
+var sombraLargo = 1.1     // longitud base de la sombra en metros (sol a 45)
+var sombraAncho = 0.75    // ancho base de la sombra en metros
+var sombraY = 0.05        // altura de la sombra sobre el suelo del Space (m)
+
+fun avanzarHoraSol(pasos) {
+    horaSolUtc = horaSolUtc + pasos
+    if (horaSolUtc >= 24.0)
+        horaSolUtc = horaSolUtc - 24.0
+}
+
+// atan(v) con |v| <= 1: dos reducciones a la mitad y despues Taylor
+fun atanSol(v) {
+    var w = v / (1.0 + sqrt(1.0 + v * v))
+    w = w / (1.0 + sqrt(1.0 + w * w))
+    val t = w * w
+    var p = 1.0 / 13.0
+    p = 1.0 / 11.0 - t * p
+    p = 1.0 / 9.0 - t * p
+    p = 1.0 / 7.0 - t * p
+    p = 1.0 / 5.0 - t * p
+    p = 1.0 / 3.0 - t * p
+    return 4.0 * w * (1.0 - t * p)
+}
+
+// atan2(y, x) en radianes, con los cuatro cuadrantes
+fun atan2Sol(y, x) {
+    if (x == 0.0 && y == 0.0)
+        return 0.0
+    if (abs(x) <= abs(y)) {
+        val a = atanSol(x / y)
+        if (y > 0.0)
+            return PI / 2.0 - a
+        return -PI / 2.0 - a
+    }
+    val b = atanSol(y / x)
+    if (x > 0.0)
+        return b
+    if (y >= 0.0)
+        return PI + b
+    return b - PI
+}
+
+// Azimut (0 = norte, 90 = este, 180 = sur, sentido horario) y elevacion
+// (grados sobre el horizonte) del sol para lat/lng y hora UTC.
+fun solAzimutElevacion(lat, lng, horaUtc, diaAnio) {
+    // ano fraccional en radianes
+    val g = 2.0 * PI / 365.0 * (diaAnio - 1.0 + (horaUtc - 12.0) / 24.0)
+    // ecuacion del tiempo en minutos
+    val eq = 229.18 * (0.000075 + 0.001868 * cos(g) - 0.032077 * sin(g) - 0.014615 * cos(2.0 * g) - 0.040849 * sin(2.0 * g))
+    // declinacion en radianes
+    val decl = 0.006918 - 0.399912 * cos(g) + 0.070257 * sin(g) - 0.006758 * cos(2.0 * g) + 0.000907 * sin(2.0 * g) - 0.002697 * cos(3.0 * g) + 0.00148 * sin(3.0 * g)
+    // tiempo solar verdadero (minutos) en UTC; longitud este positiva
+    val tst = horaUtc * 60.0 + eq + 4.0 * lng
+    // angulo horario en radianes (0 al mediodia solar)
+    val ha = (tst / 4.0 - 180.0) * PI / 180.0
+    val phi = lat * PI / 180.0
+    // vector unitario del sol: este (e), norte (n), arriba (u)
+    val e = -cos(decl) * sin(ha)
+    val n = cos(phi) * sin(decl) - sin(phi) * cos(decl) * cos(ha)
+    val u = sin(phi) * sin(decl) + cos(phi) * cos(decl) * cos(ha)
+    var az = atan2Sol(e, n) * 180.0 / PI
+    if (az < 0.0)
+        az = az + 360.0
+    val elev = atan2Sol(u, sqrt(e * e + n * n)) * 180.0 / PI
+    return dynamicOf(az = az, elev = elev)
+}
+
+// Giro (grados) del eje largo de la sombra: el GLB va con el eje largo en +x
+// (este) y hay que apuntarlo en la direccion opuesta al sol.
+fun giroSombra(az) {
+    val a = az * PI / 180.0
+    return atan2Sol(-cos(a), -sin(a)) * 180.0 / PI
+}
+
+// Longitud relativa de la sombra: 1/tan(elev) recortada a [1, 6]; 0 = de noche.
+fun largoSombra(elev) {
+    if (elev < 3.0)
+        return 0.0
+    val r = elev * PI / 180.0
+    var f = cos(r) / sin(r)
+    if (f < 1.0)
+        f = 1.0
+    if (f > 6.0)
+        f = 6.0
+    return f
+}

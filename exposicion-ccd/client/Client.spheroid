@@ -2,6 +2,7 @@ val geoAnchor = GeoAnchor.default
 val stationModel = Model(source = Source("/unclavo_soc.glb"))
 val mapIcon = Image(source = Source("/map_icon.png"))
 val notificationIcon = Image(source = Source("/notification_icon.png"))
+val sombraModel = Model(source = Source("/sombra_sol.glb"))
 val stationIds = mutableSetOf()
 var isLocationCorrect = false
 
@@ -101,6 +102,15 @@ fun main() {
     }
 
     println("Exposición CCD iniciada")
+    // Diagnostico: capturar el formato real del reloj (Date solo expone toString)
+    println("RELOJ:" + Date())
+
+    // Sombra solar: refresco periodico (modo demo: avanza la hora simulada)
+    Timer.schedule(period = TimeInterval(seconds = 10)) {
+        if (modoDemoSol)
+            avanzarHoraSol(1.0)
+        refrescarSombras()
+    }
 
     loadAssets {
         println("Assets cargados")
@@ -140,7 +150,12 @@ fun loadAssets(callback) {
                 if (!success3)
                     handleError(Exception("No se pudo cargar notification_icon.png: $error3"))
 
-                callback.invoke()
+                sombraModel.load { success4, error4 ->
+                    if (!success4)
+                        handleError(Exception("No se pudo cargar sombra_sol.glb: $error4"))
+
+                    callback.invoke()
+                }
             }
         }
     }
@@ -197,6 +212,16 @@ fun addStation(station) {
     node.location = LatLng(station.lat, station.lng)
     geoAnchor.children.add(node)
 
+    // Sombra solar (fase 1): elipse georreferenciada que sigue al sol del sitio
+    val sombra = ModelNode(
+        model = sombraModel,
+        scale = Vector3(0),
+        position = Vector3(x = 0.0, y = sombraY, z = 0.0)
+    )
+    sombra.location = LatLng(station.lat, station.lng)
+    geoAnchor.children.add(sombra)
+    aplicarSol(sombra, station.lat, station.lng)
+
     val marker = MapMarker(location = LatLng(station.lat, station.lng), icon = mapIcon)
     Map.markers.add(marker)
 
@@ -214,6 +239,29 @@ fun addStation(station) {
             icon = notificationIcon,
             text = "${station.title} — ${station.text}"
         )
+    }
+}
+
+// ----- Sombra solar (fase 1: Vía A del estudio de luz ambiental) -----
+fun aplicarSol(n, lat, lng) {
+    val sol = solAzimutElevacion(lat, lng, horaSolUtc, diaAnioSol)
+    val largo = largoSombra(sol.elev)
+    if (largo == 0.0) {
+        // de noche no hay sombra (no hay isVisible: se colapsa la escala)
+        n.scale = Vector3(0)
+    } else {
+        n.scale = Vector3(x = largo * sombraLargo, y = 1.0, z = sombraAncho)
+        n.eulerAngles = Vector3(y = giroSombra(sol.az) + ajusteGiroSol)
+    }
+}
+
+fun refrescarSombras() {
+    for (child in geoAnchor.children) {
+        if (child.model == sombraModel) {
+            val loc = child.location
+            if (loc != null)
+                aplicarSol(child, loc.lat, loc.lng)
+        }
     }
 }
 
@@ -240,7 +288,7 @@ fun move(dx, dy, dz) {
     var moved = false
     for (child in geoAnchor.children) {
         val loc = child.location
-        if (dist2(loc.lat, loc.lng) == bestD) {
+        if (dist2(loc.lat, loc.lng) == bestD && child.model == stationModel) {
             val p = child.position
             if (!startCaptured) {
                 startX = p.x
@@ -272,7 +320,7 @@ fun resetPos() {
     var done = false
     for (child in geoAnchor.children) {
         val loc = child.location
-        if (dist2(loc.lat, loc.lng) == bestD) {
+        if (dist2(loc.lat, loc.lng) == bestD && child.model == stationModel) {
             val p = child.position
             if (!startCaptured) {
                 startX = p.x
@@ -312,7 +360,7 @@ fun placeHere() {
     var done = false
     for (child in geoAnchor.children) {
         val loc = child.location
-        if (dist2(loc.lat, loc.lng) == bestD) {
+        if (dist2(loc.lat, loc.lng) == bestD && child.model == stationModel) {
             val p = child.position
             if (!startCaptured) {
                 startX = p.x
@@ -349,7 +397,7 @@ fun savePos() {
     var done = false
     for (child in geoAnchor.children) {
         val loc = child.location
-        if (dist2(loc.lat, loc.lng) == bestD) {
+        if (dist2(loc.lat, loc.lng) == bestD && child.model == stationModel) {
             val p = child.position
             if (startCaptured) {
                 savedLat = startLat - (p.z - startZ) / 111320.0
@@ -391,7 +439,7 @@ fun volverPos() {
     var done = false
     for (child in geoAnchor.children) {
         val loc = child.location
-        if (dist2(loc.lat, loc.lng) == bestD) {
+        if (dist2(loc.lat, loc.lng) == bestD && child.model == stationModel) {
             val pc = child.position
             var np = Vector3(x = pc.x, y = savedY, z = pc.z)
             if (startCaptured)
