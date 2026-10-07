@@ -31,9 +31,9 @@ const cfg = {
   authScheme: process.env.SPHEROID_AUTH_SCHEME ?? "Bearer",
   appId: process.env.SPHEROID_APP_ID || APP_ID_DEFECTO,
   endpoints: {
-    get: process.env.SPHEROID_ENDPOINT_GET || "file/content/get",
-    save: process.env.SPHEROID_ENDPOINT_SAVE || "save",
-    publish: process.env.SPHEROID_ENDPOINT_PUBLISH || "publish",
+    get: process.env.SPHEROID_ENDPOINT_GET || "api/file/content/get",
+    save: process.env.SPHEROID_ENDPOINT_SAVE || "api/file/content/save",
+    publish: process.env.SPHEROID_ENDPOINT_PUBLISH || "api/publish/publish",
     builds: process.env.SPHEROID_ENDPOINT_BUILDS || "",
   },
   localProject:
@@ -195,8 +195,7 @@ server.registerTool(
     if (faltan.length === 0 && !faltaId(pathArchivo)) {
       const r = await llamarNube(cfg.endpoints.get, {
         appId: cfg.appId,
-        id: fileIds[pathArchivo],
-        path: pathArchivo,
+        fileId: fileIds[pathArchivo],
       });
       return texto(`[nube] ${pathArchivo}\n${r.texto}`, !r.ok);
     }
@@ -257,8 +256,7 @@ server.registerTool(
     }
     const r = await llamarNube(cfg.endpoints.save, {
       appId: cfg.appId,
-      id: fileIds[pathArchivo],
-      path: pathArchivo,
+      fileId: fileIds[pathArchivo],
       content,
     });
     return texto(

@@ -1,14 +1,105 @@
-// Exposición CCD — Corporación Cultura y Desarrollo
-// Cada estación corresponde a un Space georreferenciado de la Corporación.
-
 val geoAnchor = GeoAnchor.default
-val stationModel = Model(source = Source("/estacion.glb"))
+val stationModel = Model(source = Source("/unclavo_soc.glb"))
 val mapIcon = Image(source = Source("/map_icon.png"))
 val notificationIcon = Image(source = Source("/notification_icon.png"))
 val stationIds = mutableSetOf()
 var isLocationCorrect = false
 
+var editStep = 1.0
+var editHome = Vector3(x = 0, y = 4, z = 0)
+var targetLat = 0.0
+var targetLng = 0.0
+var latestLat = 0.0
+var latestLng = 0.0
+var savedLat = 0.0
+var savedLng = 0.0
+var savedX = 0.0
+var savedY = 4.0
+var savedZ = 0.0
+var hasSaved = false
+var startLat = 0.0
+var startLng = 0.0
+var startX = 0.0
+var startY = 0.0
+var startZ = 0.0
+var startCaptured = false
+var baseLat = 0.0
+var baseLng = 0.0
+
 fun main() {
+    MainMenu {
+        val panel = Container(isVisible = false, bottom = 20dp, left = 8dp, backgroundColor = Color(rgba = 0x00000066)) {
+            Vertical(spacing = 4dp, left = 6dp, right = 6dp, top = 6dp, bottom = 6dp) {
+                Container {
+                    Horizontal(spacing = 4dp) {
+                        Container { Button(text = "PASO", width = 100dp, height = 40dp, backgroundColor = Color(rgba = 0x007AFFCC)).onClick {
+                            if (editStep == 0.5)
+                                setStep(1.0, "1")
+                            else if (editStep == 1.0)
+                                setStep(5.0, "5")
+                            else
+                                setStep(0.5, "0.5")
+                        } }
+                        Container { Button(text = "AYUDA", width = 100dp, height = 40dp, backgroundColor = Color(rgba = 0x007AFFCC)).onClick {
+                            Notification.show(icon = notificationIcon, text = "PASO: medida. VOLVER: ultimo guardado. RESET: base del Space")
+                        } }
+                    }
+                }
+                Container {
+                    Horizontal(spacing = 4dp) {
+                        Container { Button(text = "SUBIR", width = 100dp, height = 40dp, backgroundColor = Color(rgba = 0x007AFFCC)).onClick { move(0.0, editStep, 0.0) } }
+                        Container { Button(text = "BAJAR", width = 100dp, height = 40dp, backgroundColor = Color(rgba = 0x007AFFCC)).onClick { move(0.0, -editStep, 0.0) } }
+                    }
+                }
+                Container {
+                    Horizontal(spacing = 4dp) {
+                        Container { Button(text = "W", width = 100dp, height = 40dp, backgroundColor = Color(rgba = 0x007AFFCC)).onClick { move(-editStep, 0.0, 0.0) } }
+                        Container { Button(text = "E", width = 100dp, height = 40dp, backgroundColor = Color(rgba = 0x007AFFCC)).onClick { move(editStep, 0.0, 0.0) } }
+                    }
+                }
+                Container {
+                    Horizontal(spacing = 4dp) {
+                        Container { Button(text = "N", width = 100dp, height = 40dp, backgroundColor = Color(rgba = 0x007AFFCC)).onClick { move(0.0, 0.0, -editStep) } }
+                        Container { Button(text = "S", width = 100dp, height = 40dp, backgroundColor = Color(rgba = 0x007AFFCC)).onClick { move(0.0, 0.0, editStep) } }
+                    }
+                }
+                Container {
+                    Horizontal(spacing = 4dp) {
+                        Container { Button(text = "GPS AQUI", width = 100dp, height = 40dp, backgroundColor = Color(rgba = 0x007AFFCC)).onClick { placeHere() } }
+                        Container { Button(text = "GUARDAR", width = 100dp, height = 40dp, backgroundColor = Color(rgba = 0x007AFFCC)).onClick { savePos() } }
+                    }
+                }
+                Container {
+                    Horizontal(spacing = 4dp) {
+                        Container { Button(text = "VOLVER", width = 100dp, height = 40dp, backgroundColor = Color(rgba = 0x007AFFCC)).onClick { volverPos() } }
+                        Container { Button(text = "RESET", width = 100dp, height = 40dp, backgroundColor = Color(rgba = 0x007AFFCC)).onClick { resetPos() } }
+                    }
+                }
+            }
+        }
+        val pad = Container(isVisible = false, top = 16dp, left = 16dp) {
+            Button(text = "PAD", width = 72dp, height = 40dp, backgroundColor = Color(rgba = 0x007AFFCC)).onClick {
+                if (panel.isVisible == true)
+                    panel.isVisible = false
+                else
+                    panel.isVisible = true
+            }
+        }
+        Location.onInit {
+            println("Location inicializada")
+            pad.isVisible = true
+        }
+        Location.onUninit {
+            println("Location perdida")
+            geoAnchor.children.clear()
+            Map.markers.clear()
+            stationIds.clear()
+            isLocationCorrect = false
+            panel.isVisible = false
+            pad.isVisible = false
+        }
+    }
+
     println("Exposición CCD iniciada")
 
     loadAssets {
@@ -23,28 +114,23 @@ fun main() {
 
         Location.onChange(threshold = Distance(meters = 5)) { updateStations() }
 
+        Location.onChange(threshold = Distance(meters = 1)) { ll ->
+            latestLat = ll.lat
+            latestLng = ll.lng
+        }
+
         Location.onCorrect {
             println("Location correct")
             isLocationCorrect = true
             updateStations()
         }
     }
-
-    Location.onInit { println("Location inicializada") }
-
-    Location.onUninit {
-        println("Location perdida")
-        geoAnchor.children.clear()
-        Map.markers.clear()
-        stationIds.clear()
-        isLocationCorrect = false
-    }
 }
 
 fun loadAssets(callback) {
     stationModel.load { success, error ->
         if (!success)
-            handleError(Exception("No se pudo cargar estacion.glb: $error"))
+            handleError(Exception("No se pudo cargar unclavo_soc.glb: $error"))
 
         mapIcon.load { success2, error2 ->
             if (!success2)
@@ -69,6 +155,16 @@ fun updateStations() {
             handleError(error)
         else {
             println("${response.stations.size} estaciones cargadas")
+            println("DEVICE " + latestLat + "," + latestLng)
+            var vistos = 0
+            for (child in geoAnchor.children) {
+                if (vistos == 0) {
+                    val loc1 = child.location
+                    val p1 = child.position
+                    println("NODO loc=" + loc1.lat + "," + loc1.lng + " pos=" + p1.x + "," + p1.y + "," + p1.z)
+                }
+                vistos = vistos + 1
+            }
             for (station in response.stations)
                 addStation(station)
         }
@@ -81,9 +177,23 @@ fun addStation(station) {
 
     val node = ModelNode(
         model = stationModel,
-        scale = Vector3(1.5),
-        position = Vector3(y = -1)
+        scale = Vector3(1),
+        position = Vector3(y = 4)
     )
+    if (station.id == "space-ccd-iibague") {
+        val p0 = node.position
+        node.position = Vector3(x = p0.x, y = station.py, z = p0.z)
+        targetLat = station.lat
+        targetLng = station.lng
+        savedLat = station.lat
+        savedLng = station.lng
+        savedY = station.py
+        baseLat = station.baseLat
+        baseLng = station.baseLng
+        hasSaved = true
+        println("TARGET " + targetLat + "," + targetLng)
+        println("LOAD pos=" + p0.x + "," + p0.y + "," + p0.z + " py=" + station.py)
+    }
     node.location = LatLng(station.lat, station.lng)
     geoAnchor.children.add(node)
 
@@ -105,6 +215,197 @@ fun addStation(station) {
             text = "${station.title} — ${station.text}"
         )
     }
+}
+
+fun setStep(v, label) {
+    editStep = v
+    println("PASO=" + label)
+    Notification.show(icon = notificationIcon, text = "Paso: " + label + " m")
+}
+
+fun dist2(lat, lng) {
+    val a = lat - targetLat
+    val b = lng - targetLng
+    return a * a + b * b
+}
+
+fun move(dx, dy, dz) {
+    var bestD = 999999.0
+    for (child in geoAnchor.children) {
+        val loc = child.location
+        val d = dist2(loc.lat, loc.lng)
+        if (d < bestD && d < 0.000001)
+            bestD = d
+    }
+    var moved = false
+    for (child in geoAnchor.children) {
+        val loc = child.location
+        if (dist2(loc.lat, loc.lng) == bestD) {
+            val p = child.position
+            if (!startCaptured) {
+                startX = p.x
+                startY = p.y
+                startZ = p.z
+                startLat = targetLat
+                startLng = targetLng
+                startCaptured = true
+                println("BASE pos=" + p.x + "," + p.y + "," + p.z + " geo=" + startLat + "," + startLng)
+            }
+            val np = Vector3(x = p.x + dx, y = p.y + dy, z = p.z + dz)
+            child.position = np
+            moved = true
+            println("OFFSET x=" + np.x + " y=" + np.y + " z=" + np.z)
+        }
+    }
+    if (!moved)
+        println("OFFSET sin cercano bestD=" + bestD)
+}
+
+fun resetPos() {
+    var bestD = 999999.0
+    for (child in geoAnchor.children) {
+        val loc = child.location
+        val d = dist2(loc.lat, loc.lng)
+        if (d < bestD && d < 0.000001)
+            bestD = d
+    }
+    var done = false
+    for (child in geoAnchor.children) {
+        val loc = child.location
+        if (dist2(loc.lat, loc.lng) == bestD) {
+            val p = child.position
+            if (!startCaptured) {
+                startX = p.x
+                startY = p.y
+                startZ = p.z
+                startLat = targetLat
+                startLng = targetLng
+                startCaptured = true
+                println("BASE pos=" + p.x + "," + p.y + "," + p.z + " geo=" + startLat + "," + startLng)
+            }
+            val np = Vector3(x = startX + (baseLng - startLng) * 110980.0, y = 4.0, z = startZ + (startLat - baseLat) * 111320.0)
+            child.location = LatLng(baseLat, baseLng)
+            child.position = np
+            targetLat = baseLat
+            targetLng = baseLng
+            done = true
+            println("RESET base lat=" + baseLat + " lng=" + baseLng + " pos=" + np.x + "," + np.y + "," + np.z)
+        }
+    }
+    if (!done)
+        println("RESET sin cercano")
+}
+
+fun placeHere() {
+    if (latestLat == 0.0 && latestLng == 0.0) {
+        println("GPS sin fix")
+        Notification.show(icon = notificationIcon, text = "GPS sin fix: camina 2 m y reintenta")
+        return
+    }
+    var bestD = 999999.0
+    for (child in geoAnchor.children) {
+        val loc = child.location
+        val d = dist2(loc.lat, loc.lng)
+        if (d < bestD && d < 0.000001)
+            bestD = d
+    }
+    var done = false
+    for (child in geoAnchor.children) {
+        val loc = child.location
+        if (dist2(loc.lat, loc.lng) == bestD) {
+            val p = child.position
+            if (!startCaptured) {
+                startX = p.x
+                startY = p.y
+                startZ = p.z
+                startLat = targetLat
+                startLng = targetLng
+                startCaptured = true
+                println("BASE pos=" + p.x + "," + p.y + "," + p.z + " geo=" + startLat + "," + startLng)
+            }
+            val np = Vector3(x = startX + (latestLng - startLng) * 110980.0, y = p.y, z = startZ + (startLat - latestLat) * 111320.0)
+            child.location = LatLng(latestLat, latestLng)
+            child.position = np
+            done = true
+            println("PLACE lat=" + latestLat + " lng=" + latestLng + " pos=" + np.x + "," + np.y + "," + np.z)
+        }
+    }
+    if (done) {
+        targetLat = latestLat
+        targetLng = latestLng
+        Notification.show(icon = notificationIcon, text = "Escultura en tu posicion: retrocede unos metros para verla")
+    } else
+        println("PLACE sin cercano")
+}
+
+fun savePos() {
+    var bestD = 999999.0
+    for (child in geoAnchor.children) {
+        val loc = child.location
+        val d = dist2(loc.lat, loc.lng)
+        if (d < bestD && d < 0.000001)
+            bestD = d
+    }
+    var done = false
+    for (child in geoAnchor.children) {
+        val loc = child.location
+        if (dist2(loc.lat, loc.lng) == bestD) {
+            val p = child.position
+            if (startCaptured) {
+                savedLat = startLat - (p.z - startZ) / 111320.0
+                savedLng = startLng + (p.x - startX) / 110980.0
+            } else {
+                savedLat = loc.lat
+                savedLng = loc.lng
+            }
+            savedY = p.y
+            hasSaved = true
+            done = true
+            println("GUARDAR geo lat=" + savedLat + " lng=" + savedLng + " y=" + savedY)
+            val req = dynamicOf(stationId = "space-ccd-iibague", lat = savedLat, lng = savedLng, py = savedY)
+            Server.action("savePosition", request = req) { response, error ->
+                if (error != null)
+                    handleError(error)
+                else
+                    Notification.show(icon = notificationIcon, text = "Posicion guardada en el servidor")
+            }
+        }
+    }
+    if (!done)
+        println("GUARDAR sin cercano")
+}
+
+fun volverPos() {
+    if (!hasSaved) {
+        println("VOLVER sin guardado")
+        Notification.show(icon = notificationIcon, text = "Aun no hay posicion guardada")
+        return
+    }
+    var bestD = 999999.0
+    for (child in geoAnchor.children) {
+        val loc = child.location
+        val d = dist2(loc.lat, loc.lng)
+        if (d < bestD && d < 0.000001)
+            bestD = d
+    }
+    var done = false
+    for (child in geoAnchor.children) {
+        val loc = child.location
+        if (dist2(loc.lat, loc.lng) == bestD) {
+            val pc = child.position
+            var np = Vector3(x = pc.x, y = savedY, z = pc.z)
+            if (startCaptured)
+                np = Vector3(x = startX + (savedLng - startLng) * 110980.0, y = savedY, z = startZ + (startLat - savedLat) * 111320.0)
+            child.location = LatLng(savedLat, savedLng)
+            child.position = np
+            targetLat = savedLat
+            targetLng = savedLng
+            done = true
+            println("VOLVER lat=" + savedLat + " lng=" + savedLng + " pos=" + np.x + "," + np.y + "," + np.z)
+        }
+    }
+    if (!done)
+        println("VOLVER sin cercano")
 }
 
 fun handleError(error) {

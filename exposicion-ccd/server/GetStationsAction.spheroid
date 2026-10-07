@@ -2,12 +2,31 @@
 fun getStations() {
     if (!Client.location)
         return Exception("Location is not initialized.")
-
-    // v1: devuelve todas las estaciones (la lista es corta).
-    // v2: filtrar por radio alrededor de Client.location (como CoinQuest).
-    return GetStationsResult(STATIONS)
+    // Fusiona la ultima posicion guardada (tabla positions) en cada estacion
+    val out = mutableListOf()
+    for (station in STATIONS) {
+        var lat = station.lat
+        var lng = station.lng
+        var py = 4.0
+        val docs =
+            select * from positions p
+            where p.id == station.id
+        for (d in docs) {
+            lat = d.lat
+            lng = d.lng
+            py = d.py
+        }
+        out.add(dynamicOf(id = station.id, lat = lat, lng = lng, title = station.title, text = station.text, py = py, baseLat = station.lat, baseLng = station.lng))
+    }
+    return GetStationsResult(out)
 }
-
+@Action
+fun savePosition(request) {
+    delete positions p where p.id == request.stationId
+    // reinserta con los valores nuevos
+    insert positions (id, lat, lng, py) values (request.stationId, request.lat, request.lng, request.py)
+    return dynamicOf(ok = true)
+}
 fun GetStationsResult(stations) {
     return dynamicOf(stations = stations)
 }

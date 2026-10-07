@@ -93,8 +93,8 @@ Referencias oficiales (consultar ante dudas, no memorizar):
 ## Flujo de edición y publicación
 
 1. La **nube es la fuente de verdad**; el staging local puede estar desfasado → siempre leer el contenido real antes de editar.
-2. Edición vía API: **`file/content/get` → modificar (splice) → `save` → `publish`**. (El detalle exacto de endpoint/auth no quedó registrado: verificarlo al reanudar desde el panel de Spheroid.)
-3. `publish` = build; los builds se **numeran** (ExposicionCCD acumula 1–35). Publicar requiere visto bueno del usuario.
+2. Edición vía API (**verificada 7 oct 2026**): base `https://platform-api.spheroid.io` con Bearer JWT — **`POST api/file/content/get {appId, fileId}` → modificar (splice) → `POST api/file/content/save {appId, fileId, content}`**.
+3. Publicar en **2 fases**: `POST api/publish/startup {appId}` y luego `POST api/publish/publish {appId, publishClient, publishServer, isDebug, layerIds, newLayerTitle}`. El número de build sale de `GET api/app/details?appId=` → `publications[0].appVersion.build`. Publicar requiere visto bueno del usuario.
 4. Tras publicar, probar el comportamiento en el dispositivo/app antes de dar por bueno el cambio.
 
 ## Reglas de la casa

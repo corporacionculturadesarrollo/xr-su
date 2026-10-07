@@ -17,40 +17,38 @@ desde OpenCode. Registrado globalmente como servidor `spheroid`
 
 ## Configuración (variables de entorno)
 
-Mientras falten, las herramientas de nube rechazan con la lista exacta de
-pendientes — nada falla a ciegas.
+Configuración actual (7 oct 2026): **nube operativa** — base + token + 8 IDs en
+el `environment` de la entrada `spheroid` del opencode.json. `status` debe decir
+*Nube CONFIGURADA*; si el JWT vence (31 oct 2026), re-extraerlo de Demiurge
+(`sessionStorage["oidc.user:https://auth.spheroid.io:Demiurge.Frontend"]`).
 
 ```sh
-SPHEROID_API_BASE      # URL base de la API de Spheroid        (PENDIENTE)
-SPHEROID_TOKEN         # token de acceso                        (PENDIENTE)
-SPHEROID_FILE_IDS      # JSON: {"server/Stations.spheroid": "<id completo>", ...}  (PENDIENTE)
-SPHEROID_ENDPOINT_BUILDS   # endpoint de builds (no documentado; por defecto vacío)
+SPHEROID_API_BASE      # https://platform-api.spheroid.io
+SPHEROID_TOKEN         # JWT Bearer (scope Platform.Api) — caduca; re-extraer
+SPHEROID_FILE_IDS      # JSON path → id completo de los 8 archivos (ya en config)
+SPHEROID_ENDPOINT_BUILDS   # SIN endpoint: usar GET api/app/details?appId= → publications
 # Opcionales:
 SPHEROID_APP_ID        # por defecto a8c6da8a-abd9-4cfe-84a3-819d20000603
 SPHEROID_AUTH_HEADER   # por defecto Authorization
 SPHEROID_AUTH_SCHEME   # por defecto Bearer ("" = valor crudo)
-SPHEROID_ENDPOINT_GET      # por defecto file/content/get
-SPHEROID_ENDPOINT_SAVE     # por defecto save
-SPHEROID_ENDPOINT_PUBLISH  # por defecto publish
+SPHEROID_ENDPOINT_GET      # por defecto api/file/content/get
+SPHEROID_ENDPOINT_SAVE     # por defecto api/file/content/save
+SPHEROID_ENDPOINT_PUBLISH  # por defecto api/publish/publish
 SPHEROID_LOCAL_PROJECT     # por defecto ../exposicion-ccd
 ```
 
-En Windows: `setx SPHEROID_API_BASE "https://..."` (y reiniciar OpenCode para
-que el servidor herede el entorno), o añadir el mapa `environment` con
-sustitución `{env:...}` en la entrada `spheroid` del opencode.json.
+## Estado de la API (recuperado 7 oct 2026)
 
-## Qué falta (recuperar al reanudar el proyecto)
-
-1. **URL base y auth** de la API que usa Demiurge (flujo
-   `file/content/get` → `save` → `publish`): capturarlas al abrir el panel
-   (pestaña Network del navegador) o de la documentación interna de Spheroid.
-2. **IDs completos** de los 4 archivos — en el skill solo quedaron parciales
-   (`client 94fae9ab-…`, `GetStationsAction 539d8322-…`, `Stations 0862e679-…`,
-   `app.json 198d093e-…`).
-3. **Endpoint de builds** (la numeración 1–35 se ve en el panel).
-4. Verificar el **cuerpo exacto** de cada llamada: el cliente envía
-   `{appId, id, path, content}` en POST JSON; si la API responde distinto,
-   ajustar en `src/index.js`.
+1. **URL base y auth**: `https://platform-api.spheroid.io` + JWT OIDC de
+   `auth.spheroid.io` (capturado desde la sesión activa de Demiurge). ✓
+2. **IDs completos**: los 8 de ExposicionCCD, en `SPHEROID_FILE_IDS`. ✓
+3. **Endpoint de builds**: **no existe** — el historial vive en
+   `GET api/app/details?appId=` → `publications[].appVersion.build`. ✓
+4. **Cuerpos verificados**: get `{appId, fileId}` · save `{appId, fileId, content}` ·
+   publish 2 fases `publish/startup {appId}` → `publish/publish {appId,
+   publishClient, publishServer, isDebug, layerIds, newLayerTitle}`. ✓
+5. **Borrado de apps**: `api/app/delete` **no existe en el backend** (404 vacío;
+   también roto en la UI). `api/app/update` sirve para renombrar.
 
 ## Desarrollo
 

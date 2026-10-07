@@ -1,9 +1,11 @@
-// Catálogo de estaciones de la exposición.
-// ⚠️ REEMPLAZAR cada lat/lng por la coordenada exacta de un Space real
-//    de la Corporación (marketplace → My spaces).
-// Mientras tanto: centro de cada ciudad (placeholder).
-
 val STATIONS = listOf(
+    dynamicOf(
+        id = "space-ccd-iibague",
+        lat = 4.449718,
+        lng = -75.248218,
+        title = "Un clavo... s o c — Ficción Plástica",
+        text = "Ficción plástica: un martillo paralizado por su propio clavo. Ensayo completo: https://blog.culturaydesarrollo.org/un-clavo-soc-ficcion-plastica"
+    ),
     dynamicOf(
         id = "bogota",
         lat = 4.7108,
@@ -18,5 +20,4 @@ val STATIONS = listOf(
         title = "Ibagué — Capital musical de Colombia",
         text = "Estación de la Corporación Cultura y Desarrollo. culturaydesarrollo.org"
     )
-    // TODO: París, Londres, Moscú, Pekín, Washington… con tus coordenadas.
 )
