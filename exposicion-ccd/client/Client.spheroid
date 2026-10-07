@@ -1,0 +1,112 @@
+// Exposición CCD — Corporación Cultura y Desarrollo
+// Cada estación corresponde a un Space georreferenciado de la Corporación.
+
+val geoAnchor = GeoAnchor.default
+val stationModel = Model(source = Source("/estacion.glb"))
+val mapIcon = Image(source = Source("/map_icon.png"))
+val notificationIcon = Image(source = Source("/notification_icon.png"))
+val stationIds = mutableSetOf()
+var isLocationCorrect = false
+
+fun main() {
+    println("Exposición CCD iniciada")
+
+    loadAssets {
+        println("Assets cargados")
+
+        Server.action("startup") { response, error ->
+            if (error != null)
+                handleError(error)
+            else
+                Notification.show(icon = notificationIcon, text = response.welcome)
+        }
+
+        Location.onChange(threshold = Distance(meters = 5)) { updateStations() }
+
+        Location.onCorrect {
+            println("Location correct")
+            isLocationCorrect = true
+            updateStations()
+        }
+    }
+
+    Location.onInit { println("Location inicializada") }
+
+    Location.onUninit {
+        println("Location perdida")
+        geoAnchor.children.clear()
+        Map.markers.clear()
+        stationIds.clear()
+        isLocationCorrect = false
+    }
+}
+
+fun loadAssets(callback) {
+    stationModel.load { success, error ->
+        if (!success)
+            handleError(Exception("No se pudo cargar estacion.glb: $error"))
+
+        mapIcon.load { success2, error2 ->
+            if (!success2)
+                handleError(Exception("No se pudo cargar map_icon.png: $error2"))
+
+            notificationIcon.load { success3, error3 ->
+                if (!success3)
+                    handleError(Exception("No se pudo cargar notification_icon.png: $error3"))
+
+                callback.invoke()
+            }
+        }
+    }
+}
+
+fun updateStations() {
+    if (!isLocationCorrect)
+        return
+
+    Server.action("getStations") { response, error ->
+        if (error != null)
+            handleError(error)
+        else {
+            println("${response.stations.size} estaciones cargadas")
+            for (station in response.stations)
+                addStation(station)
+        }
+    }
+}
+
+fun addStation(station) {
+    if (!stationIds.add(station.id))
+        return
+
+    val node = ModelNode(
+        model = stationModel,
+        scale = Vector3(1.5),
+        position = Vector3(y = -1)
+    )
+    node.location = LatLng(station.lat, station.lng)
+    geoAnchor.children.add(node)
+
+    val marker = MapMarker(location = LatLng(station.lat, station.lng), icon = mapIcon)
+    Map.markers.add(marker)
+
+    // Rotación suave para llamar la atención
+    val girar = RotationAnimation(
+        by = Vector3(y = 360),
+        duration = TimeInterval(seconds = 8),
+        interpolation = "linear"
+    )
+    node.getAnimationController(girar).play(loop = true)
+
+    // Al tocar la estación: ficha
+    node.onTap {
+        Notification.show(
+            icon = notificationIcon,
+            text = "${station.title} — ${station.text}"
+        )
+    }
+}
+
+fun handleError(error) {
+    error("Error: $error")
+}

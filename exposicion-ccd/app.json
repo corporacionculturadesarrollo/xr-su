@@ -1,0 +1,11 @@
+{
+  "server": [
+    "./Stations.spheroid",
+    "./StartupAction.spheroid",
+    "./GetStationsAction.spheroid"
+  ],
+  "client": [
+    "./Client.spheroid"
+  ],
+  "version": "1.0.0"
+}

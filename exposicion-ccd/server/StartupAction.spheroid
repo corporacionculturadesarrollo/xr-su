@@ -1,0 +1,10 @@
+@Action
+fun startup() {
+    return StartupResult(
+        welcome = "Corporación Cultura y Desarrollo — Exposición XR"
+    )
+}
+
+fun StartupResult(welcome) {
+    return dynamicOf(welcome = welcome)
+}

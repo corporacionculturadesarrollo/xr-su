@@ -1,0 +1,13 @@
+@Action
+fun getStations() {
+    if (!Client.location)
+        return Exception("Location is not initialized.")
+
+    // v1: devuelve todas las estaciones (la lista es corta).
+    // v2: filtrar por radio alrededor de Client.location (como CoinQuest).
+    return GetStationsResult(STATIONS)
+}
+
+fun GetStationsResult(stations) {
+    return dynamicOf(stations = stations)
+}

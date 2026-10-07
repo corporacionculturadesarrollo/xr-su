@@ -1,0 +1,22 @@
+// Catálogo de estaciones de la exposición.
+// ⚠️ REEMPLAZAR cada lat/lng por la coordenada exacta de un Space real
+//    de la Corporación (marketplace → My spaces).
+// Mientras tanto: centro de cada ciudad (placeholder).
+
+val STATIONS = listOf(
+    dynamicOf(
+        id = "bogota",
+        lat = 4.7108,
+        lng = -74.0721,
+        title = "Bogotá — Cultura y desarrollo",
+        text = "Estación de la Corporación Cultura y Desarrollo. culturaydesarrollo.org"
+    ),
+    dynamicOf(
+        id = "ibague",
+        lat = 4.4389,
+        lng = -75.2322,
+        title = "Ibagué — Capital musical de Colombia",
+        text = "Estación de la Corporación Cultura y Desarrollo. culturaydesarrollo.org"
+    )
+    // TODO: París, Londres, Moscú, Pekín, Washington… con tus coordenadas.
+)
