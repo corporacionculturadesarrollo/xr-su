@@ -64,6 +64,18 @@ try {
 }
 const fileIds = { ...leerIdsEnv(), ...idsLocal };
 
+// Vocabulario oficial del lenguaje (295 términos recuperados del binario del
+// runtime oficial) para las herramientas search_language / get_term.
+const RUTA_REGISTRO = path.resolve(__dirname, "..", "registry.json");
+let registroLenguaje = { terms: [] };
+try {
+  registroLenguaje = JSON.parse(await readFile(RUTA_REGISTRO, "utf8"));
+} catch (e) {
+  console.error(
+    `Aviso: no pude leer ${RUTA_REGISTRO} (${e.message ?? e}); search_language/get_term quedarán vacías.`,
+  );
+}
+
 /** Persiste un id nuevo (p. ej. archivo recién creado) para próximas sesiones. */
 async function guardarIdLocal(pathArchivo, id) {
   fileIds[pathArchivo] = id;
@@ -92,6 +104,9 @@ function faltaId(pathArchivo) {
 function cabeceras(conTipoJson = true) {
   const h = {};
   if (conTipoJson) h["Content-Type"] = "application/json";
+  // La API de Spheroid exige el Origin de Demiurge (401 sin él en varios
+  // endpoints); verificado que fetch/undici lo reenvía sin problemas.
+  h["Origin"] = "https://demiurge.spheroid.io";
   if (cfg.token) {
     h[cfg.authHeader] = cfg.authScheme ? `${cfg.authScheme} ${cfg.token}` : cfg.token;
   }
@@ -513,6 +528,106 @@ server.registerTool(
     const r = await llamarNube(cfg.endpoints.del, { appId: cfg.appId, fileId: id });
     const okInterno = r.dato?.success === true;
     return texto(r.texto, !r.ok || !okInterno);
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Vocabulario del lenguaje (registry.json: 295 términos recuperados del
+// binario del runtime oficial; antes vivían en un wrapper externo).
+
+server.registerTool(
+  "search_language",
+  {
+    title: "Buscar en el vocabulario oficial Spheroid Script",
+    description:
+      "Busca tipos, objetos globales, funciones, propiedades, eventos, componentes UI, animaciones y queries en el vocabulario de Spheroid Script (295 términos) recuperado del binario del runtime oficial (PixelVoxel).",
+    inputSchema: {
+      query: z
+        .string()
+        .describe("Subcadena del nombre (insensible a mayúsculas). Vacío = todos."),
+      category: z
+        .enum([
+          "primitive",
+          "geometry",
+          "ui",
+          "ar_query",
+          "global",
+          "function",
+          "method",
+          "property",
+          "event",
+          "style",
+        ])
+        .optional()
+        .describe("Filtrar por categoría."),
+    },
+  },
+  async ({ query, category }) => {
+    const q = query.toLowerCase();
+    let terms = registroLenguaje.terms || [];
+    if (category) terms = terms.filter((t) => t.category === category);
+    if (q) terms = terms.filter((t) => t.name.toLowerCase().includes(q));
+    const txt =
+      `Encontrados ${terms.length} términos:\n` +
+      terms.map((t) => `${t.name}  (id ${t.id}, ${t.category})`).join("\n");
+    return texto(txt);
+  },
+);
+
+server.registerTool(
+  "get_term",
+  {
+    title: "Detalle de un término del lenguaje",
+    description:
+      "Devuelve id, categoría y familia semántica de un término exacto de Spheroid Script.",
+    inputSchema: { name: z.string().describe("Nombre exacto, p. ej. 'Timer', 'println'.") },
+  },
+  async ({ name }) => {
+    const t = (registroLenguaje.terms || []).find((o) => o.name === name);
+    if (!t) {
+      const cerca = (registroLenguaje.terms || [])
+        .filter((o) => o.name.toLowerCase().includes(name.toLowerCase()))
+        .slice(0, 8)
+        .map((o) => o.name);
+      return texto(`No existe '${name}'. ¿Quisiste decir?: ${cerca.join(", ") || "(nada)"}`);
+    }
+    return texto(JSON.stringify({ id: t.id, name: t.name, category: t.category }, null, 1));
+  },
+);
+
+server.registerTool(
+  "api_call",
+  {
+    title: "Llamada genérica a la API de Spheroid",
+    description:
+      "Ejecuta una petición HTTP contra la API de plataforma de Spheroid (con el Origin de Demiurge). Para endpoints no cubiertos por las herramientas del servidor, p. ej. api/app/list, api/directory/list, api/app/details. Body en JSON como objeto.",
+    inputSchema: {
+      method: z.enum(["GET", "POST"]).describe("Método HTTP."),
+      endpoint: z.string().describe("Ruta relativa, p. ej. 'api/app/list'."),
+      body: z
+        .record(z.any())
+        .optional()
+        .describe("Cuerpo JSON (para POST; también parámetros en GET)."),
+    },
+  },
+  async ({ method, endpoint, body }) => {
+    const faltan = pendientesNube();
+    if (faltan.length > 0) {
+      return texto("Nube no configurada:\n" + faltan.map((f) => `  - ${f}`).join("\n"), true);
+    }
+    const url = new URL(endpoint.replace(/^\/+/, ""), cfg.apiBase + "/");
+    const init = { method, headers: cabeceras(method === "POST") };
+    if (method === "GET" && body) {
+      for (const [k, v] of Object.entries(body)) url.searchParams.set(k, String(v));
+    }
+    if (method === "POST") init.body = JSON.stringify(body || {});
+    try {
+      const r = await fetch(url, init);
+      const t = await r.text();
+      return texto(`HTTP ${r.status}\n${t.slice(0, 8000)}`, r.status >= 400);
+    } catch (e) {
+      return texto(`Error de red: ${e.message ?? e}`, true);
+    }
   },
 );
 

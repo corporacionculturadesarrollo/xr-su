@@ -1,1 +1,7 @@
-{}
+{
+  "client/Client.spheroid": "94fae9ab-8bc6-4b57-b196-58528a0c8233",
+  "client/Sun.spheroid": "921c9f73-4beb-4fba-9df8-230fb5e4c78f",
+  "assets/sombra_sol.glb": "a387460f-cd05-4c10-b946-7a9fa0b3a39d",
+  "server/Stations.spheroid": "0862e679-1954-4367-9462-f65e8a95ceec",
+  "server/GetStationsAction.spheroid": "539d8322-28e4-4a53-b9c4-0f39e0ba7d20"
+}

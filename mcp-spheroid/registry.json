@@ -1,0 +1,1481 @@
+{
+ "source": "PixelVoxel 5.0.25 (io.spheroid.pixelvoxel) APK, class spheroid.scriptengine.d3 — registro maestro de vocabulario del intérprete Spheroid Script",
+ "count": 295,
+ "terms": [
+  {
+   "id": 1001,
+   "name": "center",
+   "category": "style"
+  },
+  {
+   "id": 1002,
+   "name": "top",
+   "category": "style"
+  },
+  {
+   "id": 1003,
+   "name": "right",
+   "category": "style"
+  },
+  {
+   "id": 1004,
+   "name": "bottom",
+   "category": "style"
+  },
+  {
+   "id": 1005,
+   "name": "left",
+   "category": "style"
+  },
+  {
+   "id": 1006,
+   "name": "vertical",
+   "category": "style"
+  },
+  {
+   "id": 1007,
+   "name": "horizontal",
+   "category": "style"
+  },
+  {
+   "id": 1009,
+   "name": "server",
+   "category": "style"
+  },
+  {
+   "id": 1010,
+   "name": "bold",
+   "category": "style"
+  },
+  {
+   "id": 1011,
+   "name": "white",
+   "category": "style"
+  },
+  {
+   "id": 1012,
+   "name": "black",
+   "category": "style"
+  },
+  {
+   "id": 1013,
+   "name": "normal",
+   "category": "style"
+  },
+  {
+   "id": 1014,
+   "name": "italic",
+   "category": "style"
+  },
+  {
+   "id": 1015,
+   "name": "justify",
+   "category": "style"
+  },
+  {
+   "id": 1016,
+   "name": "count",
+   "category": "style"
+  },
+  {
+   "id": 1017,
+   "name": "exists",
+   "category": "style"
+  },
+  {
+   "id": 1018,
+   "name": "max",
+   "category": "style"
+  },
+  {
+   "id": 1019,
+   "name": "min",
+   "category": "style"
+  },
+  {
+   "id": 1020,
+   "name": "sum",
+   "category": "style"
+  },
+  {
+   "id": 1021,
+   "name": "avg",
+   "category": "style"
+  },
+  {
+   "id": 1022,
+   "name": "PI",
+   "category": "style"
+  },
+  {
+   "id": 2000,
+   "name": "name",
+   "category": "property"
+  },
+  {
+   "id": 2001,
+   "name": "title",
+   "category": "property"
+  },
+  {
+   "id": 2002,
+   "name": "placeholder",
+   "category": "property"
+  },
+  {
+   "id": 2003,
+   "name": "isRequired",
+   "category": "property"
+  },
+  {
+   "id": 2004,
+   "name": "text",
+   "category": "property"
+  },
+  {
+   "id": 2005,
+   "name": "regex",
+   "category": "property"
+  },
+  {
+   "id": 2007,
+   "name": "remove",
+   "category": "property"
+  },
+  {
+   "id": 2008,
+   "name": "value",
+   "category": "property"
+  },
+  {
+   "id": 2009,
+   "name": "errorMessage",
+   "category": "property"
+  },
+  {
+   "id": 2010,
+   "name": "action",
+   "category": "property"
+  },
+  {
+   "id": 2011,
+   "name": "width",
+   "category": "property"
+  },
+  {
+   "id": 2012,
+   "name": "height",
+   "category": "property"
+  },
+  {
+   "id": 2013,
+   "name": "verticalAlign",
+   "category": "property"
+  },
+  {
+   "id": 2014,
+   "name": "horizontalAlign",
+   "category": "property"
+  },
+  {
+   "id": 2015,
+   "name": "orientation",
+   "category": "property"
+  },
+  {
+   "id": 2019,
+   "name": "spacing",
+   "category": "property"
+  },
+  {
+   "id": 2020,
+   "name": "textSize",
+   "category": "property"
+  },
+  {
+   "id": 2021,
+   "name": "textColor",
+   "category": "property"
+  },
+  {
+   "id": 2022,
+   "name": "fontWeight",
+   "category": "property"
+  },
+  {
+   "id": 2024,
+   "name": "statusBarStyle",
+   "category": "property"
+  },
+  {
+   "id": 2025,
+   "name": "navigationBarForegroundColor",
+   "category": "property"
+  },
+  {
+   "id": 2026,
+   "name": "navigationBarBackgroundColor",
+   "category": "property"
+  },
+  {
+   "id": 2027,
+   "name": "backgroundColor",
+   "category": "property"
+  },
+  {
+   "id": 2028,
+   "name": "rgb",
+   "category": "property"
+  },
+  {
+   "id": 2029,
+   "name": "fontFamily",
+   "category": "property"
+  },
+  {
+   "id": 2030,
+   "name": "fontStyle",
+   "category": "property"
+  },
+  {
+   "id": 2031,
+   "name": "cornerRadius",
+   "category": "property"
+  },
+  {
+   "id": 2032,
+   "name": "textAlign",
+   "category": "property"
+  },
+  {
+   "id": 2033,
+   "name": "isVisible",
+   "category": "property"
+  },
+  {
+   "id": 2034,
+   "name": "rotation",
+   "category": "property"
+  },
+  {
+   "id": 2035,
+   "name": "radian",
+   "category": "property"
+  },
+  {
+   "id": 2036,
+   "name": "degree",
+   "category": "property"
+  },
+  {
+   "id": 2037,
+   "name": "borderWidth",
+   "category": "property"
+  },
+  {
+   "id": 2038,
+   "name": "borderColor",
+   "category": "property"
+  },
+  {
+   "id": 2039,
+   "name": "size",
+   "category": "property"
+  },
+  {
+   "id": 2040,
+   "name": "settings",
+   "category": "property"
+  },
+  {
+   "id": 2041,
+   "name": "rgba",
+   "category": "property"
+  },
+  {
+   "id": 2042,
+   "name": "delay",
+   "category": "property"
+  },
+  {
+   "id": 2043,
+   "name": "period",
+   "category": "property"
+  },
+  {
+   "id": 2044,
+   "name": "days",
+   "category": "property"
+  },
+  {
+   "id": 2045,
+   "name": "hours",
+   "category": "property"
+  },
+  {
+   "id": 2046,
+   "name": "minutes",
+   "category": "property"
+  },
+  {
+   "id": 2047,
+   "name": "seconds",
+   "category": "property"
+  },
+  {
+   "id": 2048,
+   "name": "milliseconds",
+   "category": "property"
+  },
+  {
+   "id": 2049,
+   "name": "callback",
+   "category": "property"
+  },
+  {
+   "id": 2050,
+   "name": "x",
+   "category": "property"
+  },
+  {
+   "id": 2051,
+   "name": "y",
+   "category": "property"
+  },
+  {
+   "id": 2052,
+   "name": "z",
+   "category": "property"
+  },
+  {
+   "id": 2053,
+   "name": "lat",
+   "category": "property"
+  },
+  {
+   "id": 2054,
+   "name": "lng",
+   "category": "property"
+  },
+  {
+   "id": 2056,
+   "name": "position",
+   "category": "property"
+  },
+  {
+   "id": 2057,
+   "name": "scale",
+   "category": "property"
+  },
+  {
+   "id": 2058,
+   "name": "children",
+   "category": "property"
+  },
+  {
+   "id": 2059,
+   "name": "model",
+   "category": "property"
+  },
+  {
+   "id": 2060,
+   "name": "source",
+   "category": "property"
+  },
+  {
+   "id": 2061,
+   "name": "assetId",
+   "category": "property"
+  },
+  {
+   "id": 2062,
+   "name": "isLoaded",
+   "category": "property"
+  },
+  {
+   "id": 2063,
+   "name": "isLoading",
+   "category": "property"
+  },
+  {
+   "id": 2064,
+   "name": "isBundle",
+   "category": "property"
+  },
+  {
+   "id": 2065,
+   "name": "path",
+   "category": "property"
+  },
+  {
+   "id": 2066,
+   "name": "appId",
+   "category": "property"
+  },
+  {
+   "id": 2067,
+   "name": "default",
+   "category": "property"
+  },
+  {
+   "id": 2068,
+   "name": "isInitialized",
+   "category": "property"
+  },
+  {
+   "id": 2070,
+   "name": "it",
+   "category": "property"
+  },
+  {
+   "id": 2071,
+   "name": "meters",
+   "category": "property"
+  },
+  {
+   "id": 2072,
+   "name": "threshold",
+   "category": "property"
+  },
+  {
+   "id": 2073,
+   "name": "loop",
+   "category": "property"
+  },
+  {
+   "id": 2074,
+   "name": "audio",
+   "category": "property"
+  },
+  {
+   "id": 2075,
+   "name": "markers",
+   "category": "property"
+  },
+  {
+   "id": 2076,
+   "name": "by",
+   "category": "property"
+  },
+  {
+   "id": 2077,
+   "name": "to",
+   "category": "property"
+  },
+  {
+   "id": 2078,
+   "name": "duration",
+   "category": "property"
+  },
+  {
+   "id": 2079,
+   "name": "interpolation",
+   "category": "property"
+  },
+  {
+   "id": 2080,
+   "name": "linear",
+   "category": "property"
+  },
+  {
+   "id": 2081,
+   "name": "accelerate",
+   "category": "property"
+  },
+  {
+   "id": 2082,
+   "name": "deccelerate",
+   "category": "property"
+  },
+  {
+   "id": 2083,
+   "name": "acceleratedeccelerate",
+   "category": "property"
+  },
+  {
+   "id": 2084,
+   "name": "repeatCount",
+   "category": "property"
+  },
+  {
+   "id": 2085,
+   "name": "isIOS",
+   "category": "property"
+  },
+  {
+   "id": 2086,
+   "name": "isAndroid",
+   "category": "property"
+  },
+  {
+   "id": 2087,
+   "name": "table",
+   "category": "property"
+  },
+  {
+   "id": 2088,
+   "name": "columns",
+   "category": "property"
+  },
+  {
+   "id": 2089,
+   "name": "where",
+   "category": "property"
+  },
+  {
+   "id": 2090,
+   "name": "orderBy",
+   "category": "property"
+  },
+  {
+   "id": 2091,
+   "name": "offset",
+   "category": "property"
+  },
+  {
+   "id": 2092,
+   "name": "limit",
+   "category": "property"
+  },
+  {
+   "id": 2093,
+   "name": "onDuplicateKey",
+   "category": "property"
+  },
+  {
+   "id": 2094,
+   "name": "first",
+   "category": "property"
+  },
+  {
+   "id": 2095,
+   "name": "second",
+   "category": "property"
+  },
+  {
+   "id": 2096,
+   "name": "isAscending",
+   "category": "property"
+  },
+  {
+   "id": 2097,
+   "name": "animation",
+   "category": "property"
+  },
+  {
+   "id": 2098,
+   "name": "request",
+   "category": "property"
+  },
+  {
+   "id": 2099,
+   "name": "function",
+   "category": "property"
+  },
+  {
+   "id": 2100,
+   "name": "userId",
+   "category": "property"
+  },
+  {
+   "id": 2101,
+   "name": "platformVersion",
+   "category": "property"
+  },
+  {
+   "id": 2102,
+   "name": "layerId",
+   "category": "property"
+  },
+  {
+   "id": 2103,
+   "name": "version",
+   "category": "property"
+  },
+  {
+   "id": 2104,
+   "name": "major",
+   "category": "property"
+  },
+  {
+   "id": 2105,
+   "name": "minor",
+   "category": "property"
+  },
+  {
+   "id": 2106,
+   "name": "patch",
+   "category": "property"
+  },
+  {
+   "id": 2107,
+   "name": "isServer",
+   "category": "property"
+  },
+  {
+   "id": 2108,
+   "name": "isClient",
+   "category": "property"
+  },
+  {
+   "id": 2110,
+   "name": "w",
+   "category": "property"
+  },
+  {
+   "id": 2111,
+   "name": "eulerAngles",
+   "category": "property"
+  },
+  {
+   "id": 2112,
+   "name": "seed",
+   "category": "property"
+  },
+  {
+   "id": 2113,
+   "name": "from",
+   "category": "property"
+  },
+  {
+   "id": 2114,
+   "name": "until",
+   "category": "property"
+  },
+  {
+   "id": 2115,
+   "name": "class",
+   "category": "property"
+  },
+  {
+   "id": 2116,
+   "name": "padding",
+   "category": "property"
+  },
+  {
+   "id": 2117,
+   "name": "isSecure",
+   "category": "property"
+  },
+  {
+   "id": 2118,
+   "name": "placeholderColor",
+   "category": "property"
+  },
+  {
+   "id": 2119,
+   "name": "worldPosition",
+   "category": "property"
+  },
+  {
+   "id": 2120,
+   "name": "camera",
+   "category": "property"
+  },
+  {
+   "id": 2121,
+   "name": "tintColor",
+   "category": "property"
+  },
+  {
+   "id": 2123,
+   "name": "icon",
+   "category": "property"
+  },
+  {
+   "id": 2124,
+   "name": "isEmail",
+   "category": "property"
+  },
+  {
+   "id": 3000,
+   "name": "submit",
+   "category": "method"
+  },
+  {
+   "id": 3001,
+   "name": "navigate",
+   "category": "method"
+  },
+  {
+   "id": 3002,
+   "name": "back",
+   "category": "method"
+  },
+  {
+   "id": 3003,
+   "name": "open",
+   "category": "method"
+  },
+  {
+   "id": 3004,
+   "name": "isEmpty",
+   "category": "method"
+  },
+  {
+   "id": 3005,
+   "name": "contains",
+   "category": "method"
+  },
+  {
+   "id": 3006,
+   "name": "add",
+   "category": "method"
+  },
+  {
+   "id": 3007,
+   "name": "clear",
+   "category": "method"
+  },
+  {
+   "id": 3008,
+   "name": "get",
+   "category": "method"
+  },
+  {
+   "id": 3009,
+   "name": "set",
+   "category": "method"
+  },
+  {
+   "id": 3010,
+   "name": "toByteArray",
+   "category": "method"
+  },
+  {
+   "id": 3011,
+   "name": "schedule",
+   "category": "method"
+  },
+  {
+   "id": 3012,
+   "name": "cancel",
+   "category": "method"
+  },
+  {
+   "id": 3013,
+   "name": "reload",
+   "category": "method"
+  },
+  {
+   "id": 3014,
+   "name": "load",
+   "category": "method"
+  },
+  {
+   "id": 3015,
+   "name": "let",
+   "category": "method"
+  },
+  {
+   "id": 3016,
+   "name": "invoke",
+   "category": "method"
+  },
+  {
+   "id": 3017,
+   "name": "getAnimationController",
+   "category": "method"
+  },
+  {
+   "id": 3018,
+   "name": "play",
+   "category": "method"
+  },
+  {
+   "id": 3019,
+   "name": "playAudio",
+   "category": "method"
+  },
+  {
+   "id": 3020,
+   "name": "playAnimation",
+   "category": "method"
+  },
+  {
+   "id": 3021,
+   "name": "stop",
+   "category": "method"
+  },
+  {
+   "id": 3022,
+   "name": "toString",
+   "category": "method"
+  },
+  {
+   "id": 3023,
+   "name": "getAudioController",
+   "category": "method"
+  },
+  {
+   "id": 3024,
+   "name": "execute",
+   "category": "method"
+  },
+  {
+   "id": 3025,
+   "name": "notFound",
+   "category": "method"
+  },
+  {
+   "id": 3026,
+   "name": "ignore",
+   "category": "method"
+  },
+  {
+   "id": 3027,
+   "name": "update",
+   "category": "method"
+  },
+  {
+   "id": 3029,
+   "name": "toLong",
+   "category": "method"
+  },
+  {
+   "id": 3030,
+   "name": "toDouble",
+   "category": "method"
+  },
+  {
+   "id": 3031,
+   "name": "toDecimal",
+   "category": "method"
+  },
+  {
+   "id": 3032,
+   "name": "nextLong",
+   "category": "method"
+  },
+  {
+   "id": 3033,
+   "name": "xor",
+   "category": "method"
+  },
+  {
+   "id": 3034,
+   "name": "nextDouble",
+   "category": "method"
+  },
+  {
+   "id": 3035,
+   "name": "show",
+   "category": "method"
+  },
+  {
+   "id": 3500,
+   "name": "onClick",
+   "category": "event"
+  },
+  {
+   "id": 3501,
+   "name": "onInit",
+   "category": "event"
+  },
+  {
+   "id": 3502,
+   "name": "onUninit",
+   "category": "event"
+  },
+  {
+   "id": 3503,
+   "name": "onChange",
+   "category": "event"
+  },
+  {
+   "id": 3504,
+   "name": "onStart",
+   "category": "event"
+  },
+  {
+   "id": 3505,
+   "name": "onComplete",
+   "category": "event"
+  },
+  {
+   "id": 3506,
+   "name": "onTap",
+   "category": "event"
+  },
+  {
+   "id": 3507,
+   "name": "onInvoke",
+   "category": "event"
+  },
+  {
+   "id": 3508,
+   "name": "onFocusChange",
+   "category": "event"
+  },
+  {
+   "id": 3509,
+   "name": "onValueChange",
+   "category": "event"
+  },
+  {
+   "id": 3513,
+   "name": "onCorrect",
+   "category": "event"
+  },
+  {
+   "id": 4000,
+   "name": "null",
+   "category": "primitive"
+  },
+  {
+   "id": 4001,
+   "name": "Boolean",
+   "category": "primitive"
+  },
+  {
+   "id": 4002,
+   "name": "Long",
+   "category": "primitive"
+  },
+  {
+   "id": 4003,
+   "name": "Double",
+   "category": "primitive"
+  },
+  {
+   "id": 4004,
+   "name": "String",
+   "category": "primitive"
+  },
+  {
+   "id": 4005,
+   "name": "UUID",
+   "category": "primitive"
+  },
+  {
+   "id": 4006,
+   "name": "Object",
+   "category": "primitive"
+  },
+  {
+   "id": 4007,
+   "name": "List",
+   "category": "primitive"
+  },
+  {
+   "id": 4008,
+   "name": "Function",
+   "category": "primitive"
+  },
+  {
+   "id": 4009,
+   "name": "ByteArray",
+   "category": "primitive"
+  },
+  {
+   "id": 4010,
+   "name": "Set",
+   "category": "primitive"
+  },
+  {
+   "id": 4011,
+   "name": "Exception",
+   "category": "primitive"
+  },
+  {
+   "id": 4012,
+   "name": "Decimal",
+   "category": "primitive"
+  },
+  {
+   "id": 4100,
+   "name": "LatLng",
+   "category": "geometry"
+  },
+  {
+   "id": 4101,
+   "name": "Vector3",
+   "category": "geometry"
+  },
+  {
+   "id": 4102,
+   "name": "Color",
+   "category": "geometry"
+  },
+  {
+   "id": 4103,
+   "name": "DP",
+   "category": "geometry"
+  },
+  {
+   "id": 4104,
+   "name": "SP",
+   "category": "geometry"
+  },
+  {
+   "id": 4105,
+   "name": "PX",
+   "category": "geometry"
+  },
+  {
+   "id": 4106,
+   "name": "Percent",
+   "category": "geometry"
+  },
+  {
+   "id": 4107,
+   "name": "Weight",
+   "category": "geometry"
+  },
+  {
+   "id": 4108,
+   "name": "Angle",
+   "category": "geometry"
+  },
+  {
+   "id": 4109,
+   "name": "TimeInterval",
+   "category": "geometry"
+  },
+  {
+   "id": 4110,
+   "name": "Source",
+   "category": "geometry"
+  },
+  {
+   "id": 4111,
+   "name": "LongProgression",
+   "category": "geometry"
+  },
+  {
+   "id": 4112,
+   "name": "LongRange",
+   "category": "geometry"
+  },
+  {
+   "id": 4113,
+   "name": "Distance",
+   "category": "geometry"
+  },
+  {
+   "id": 4114,
+   "name": "Pair",
+   "category": "geometry"
+  },
+  {
+   "id": 4115,
+   "name": "Quaternion",
+   "category": "geometry"
+  },
+  {
+   "id": 4116,
+   "name": "Date",
+   "category": "geometry"
+  },
+  {
+   "id": 4200,
+   "name": "Page",
+   "category": "ui"
+  },
+  {
+   "id": 4201,
+   "name": "Form",
+   "category": "ui"
+  },
+  {
+   "id": 4202,
+   "name": "TextField",
+   "category": "ui"
+  },
+  {
+   "id": 4203,
+   "name": "HiddenField",
+   "category": "ui"
+  },
+  {
+   "id": 4205,
+   "name": "Validation",
+   "category": "ui"
+  },
+  {
+   "id": 4206,
+   "name": "Button",
+   "category": "ui"
+  },
+  {
+   "id": 4207,
+   "name": "Dialog",
+   "category": "ui"
+  },
+  {
+   "id": 4208,
+   "name": "Stack",
+   "category": "ui"
+  },
+  {
+   "id": 4209,
+   "name": "Container",
+   "category": "ui"
+  },
+  {
+   "id": 4210,
+   "name": "Image",
+   "category": "ui"
+  },
+  {
+   "id": 4211,
+   "name": "Text",
+   "category": "ui"
+  },
+  {
+   "id": 4212,
+   "name": "Loader",
+   "category": "ui"
+  },
+  {
+   "id": 4213,
+   "name": "Result",
+   "category": "ui"
+  },
+  {
+   "id": 4214,
+   "name": "Error",
+   "category": "ui"
+  },
+  {
+   "id": 4215,
+   "name": "TextSpan",
+   "category": "ui"
+  },
+  {
+   "id": 4301,
+   "name": "ModelNode",
+   "category": "ar_query"
+  },
+  {
+   "id": 4302,
+   "name": "Model",
+   "category": "ar_query"
+  },
+  {
+   "id": 4303,
+   "name": "GeoAnchor",
+   "category": "ar_query"
+  },
+  {
+   "id": 4304,
+   "name": "Audio",
+   "category": "ar_query"
+  },
+  {
+   "id": 4305,
+   "name": "SceneAudio",
+   "category": "ar_query"
+  },
+  {
+   "id": 4306,
+   "name": "MapMarker",
+   "category": "ar_query"
+  },
+  {
+   "id": 4307,
+   "name": "AnimationGroup",
+   "category": "ar_query"
+  },
+  {
+   "id": 4308,
+   "name": "AnimationSequence",
+   "category": "ar_query"
+  },
+  {
+   "id": 4309,
+   "name": "LocationAnimation",
+   "category": "ar_query"
+  },
+  {
+   "id": 4310,
+   "name": "PositionAnimation",
+   "category": "ar_query"
+  },
+  {
+   "id": 4311,
+   "name": "RotationAnimation",
+   "category": "ar_query"
+  },
+  {
+   "id": 4312,
+   "name": "ScaleAnimation",
+   "category": "ar_query"
+  },
+  {
+   "id": 4313,
+   "name": "WaitAnimation",
+   "category": "ar_query"
+  },
+  {
+   "id": 4314,
+   "name": "ModelAnimation",
+   "category": "ar_query"
+  },
+  {
+   "id": 4315,
+   "name": "SelectQuery",
+   "category": "ar_query"
+  },
+  {
+   "id": 4316,
+   "name": "InsertQuery",
+   "category": "ar_query"
+  },
+  {
+   "id": 4317,
+   "name": "UpdateQuery",
+   "category": "ar_query"
+  },
+  {
+   "id": 4318,
+   "name": "DeleteQuery",
+   "category": "ar_query"
+  },
+  {
+   "id": 4319,
+   "name": "OrderByColumn",
+   "category": "ar_query"
+  },
+  {
+   "id": 4320,
+   "name": "PlatformVersion",
+   "category": "ar_query"
+  },
+  {
+   "id": 4321,
+   "name": "OnDuplicateKey",
+   "category": "ar_query"
+  },
+  {
+   "id": 4322,
+   "name": "Random",
+   "category": "ar_query"
+  },
+  {
+   "id": 4323,
+   "name": "IllegalStateException",
+   "category": "ar_query"
+  },
+  {
+   "id": 4324,
+   "name": "IllegalArgumentException",
+   "category": "ar_query"
+  },
+  {
+   "id": 4325,
+   "name": "WorldAnchor",
+   "category": "ar_query"
+  },
+  {
+   "id": 4400,
+   "name": "App",
+   "category": "global"
+  },
+  {
+   "id": 4401,
+   "name": "AppSettings",
+   "category": "global"
+  },
+  {
+   "id": 4402,
+   "name": "Timer",
+   "category": "global"
+  },
+  {
+   "id": 4403,
+   "name": "NodeCollection",
+   "category": "global"
+  },
+  {
+   "id": 4404,
+   "name": "Location",
+   "category": "global"
+  },
+  {
+   "id": 4405,
+   "name": "Server",
+   "category": "global"
+  },
+  {
+   "id": 4406,
+   "name": "Client",
+   "category": "global"
+  },
+  {
+   "id": 4407,
+   "name": "Dynamic",
+   "category": "global"
+  },
+  {
+   "id": 4408,
+   "name": "AnimationController",
+   "category": "global"
+  },
+  {
+   "id": 4409,
+   "name": "SceneAudioController",
+   "category": "global"
+  },
+  {
+   "id": 4410,
+   "name": "Map",
+   "category": "global"
+  },
+  {
+   "id": 4411,
+   "name": "MapMarkerCollection",
+   "category": "global"
+  },
+  {
+   "id": 4412,
+   "name": "Platform",
+   "category": "global"
+  },
+  {
+   "id": 4413,
+   "name": "Expression",
+   "category": "global"
+  },
+  {
+   "id": 4414,
+   "name": "Action",
+   "category": "global"
+  },
+  {
+   "id": 4415,
+   "name": "ActionContext",
+   "category": "global"
+  },
+  {
+   "id": 4416,
+   "name": "Device",
+   "category": "global"
+  },
+  {
+   "id": 4417,
+   "name": "Default",
+   "category": "global"
+  },
+  {
+   "id": 4418,
+   "name": "Camera",
+   "category": "global"
+  },
+  {
+   "id": 4419,
+   "name": "Scene",
+   "category": "global"
+  },
+  {
+   "id": 4420,
+   "name": "Layer",
+   "category": "global"
+  },
+  {
+   "id": 4421,
+   "name": "Notification",
+   "category": "global"
+  },
+  {
+   "id": 4423,
+   "name": "ARAnchor",
+   "category": "global"
+  },
+  {
+   "id": 5200,
+   "name": "listOf",
+   "category": "function"
+  },
+  {
+   "id": 5201,
+   "name": "mutableListOf",
+   "category": "function"
+  },
+  {
+   "id": 5202,
+   "name": "emptyList",
+   "category": "function"
+  },
+  {
+   "id": 5203,
+   "name": "mutableSetOf",
+   "category": "function"
+  },
+  {
+   "id": 5204,
+   "name": "setOf",
+   "category": "function"
+  },
+  {
+   "id": 5205,
+   "name": "emptySet",
+   "category": "function"
+  },
+  {
+   "id": 5206,
+   "name": "mutableDynamicOf",
+   "category": "function"
+  },
+  {
+   "id": 5207,
+   "name": "dynamicOf",
+   "category": "function"
+  },
+  {
+   "id": 5208,
+   "name": "println",
+   "category": "function"
+  },
+  {
+   "id": 5209,
+   "name": "error",
+   "category": "function"
+  },
+  {
+   "id": 5210,
+   "name": "cos",
+   "category": "function"
+  },
+  {
+   "id": 5211,
+   "name": "sin",
+   "category": "function"
+  },
+  {
+   "id": 5212,
+   "name": "abs",
+   "category": "function"
+  },
+  {
+   "id": 5213,
+   "name": "check",
+   "category": "function"
+  },
+  {
+   "id": 5214,
+   "name": "require",
+   "category": "function"
+  },
+  {
+   "id": 5215,
+   "name": "transaction",
+   "category": "function"
+  },
+  {
+   "id": 5216,
+   "name": "repeat",
+   "category": "function"
+  },
+  {
+   "id": 5217,
+   "name": "sqrt",
+   "category": "function"
+  },
+  {
+   "id": 5218,
+   "name": "pow",
+   "category": "function"
+  }
+ ]
+}
