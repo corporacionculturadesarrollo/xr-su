@@ -1,3 +1,26 @@
+var horaSolUtc = 15.0     // hora UTC decimal (0..24) — placeholder del reloj
+var diaAnioSol = 280.0    // dia del anio (1..365): 280 = 7 de octubre
+var modoDemoSol = true    // si true, el Timer avanza la hora en cada tick (demo)
+var ajusteGiroSol = 0.0   // calibracion de orientacion en dispositivo (grados)
+var sombraLargo = 1.1     // longitud base de la sombra en metros (sol a 45)
+var sombraAncho = 0.75    // ancho base de la sombra en metros
+// sombraY: offset vertical de la sombra bajo el origen del nodo de su
+// estacion. La base del modelo unclavo_soc.glb esta en y = -0.496 (el modelo
+// esta centrado en el origen): -0.496 + 0.03 de levantamiento = -0.47.
+// Antes valia 0.05 "sobre el suelo del Space", pero el objeto lo calibra el
+// usuario en y negativa (-0.6 en la escultura) y la sombra flotaba POR
+// ENCIMA del objeto (0.16 m por encima de su techo).
+var sombraY = -0.47
+
+// NOTA DE SINTAXIS: este archivo NO puede empezar por comentario ni linea en
+// blanco. La gramatica de Spheroid Script exige que la PRIMERA linea visible
+// sea una declaracion (val/var/fun/@): lo que hay antes del primer salto de
+// linea se parsea como programa vacio y el '\n' inicial es inesperado
+// (error tipico: "mismatched input '\n' expecting {<EOF>, '@', 'fun', 'val', 'var'}").
+// Los comentarios entre declaraciones si valen (el lexer los oculta y solo
+// deja sus saltos de linea, que el programa acepta entre declaraciones).
+// Por eso la cabecera documental va debajo del bloque de variables.
+
 // Sun.spheroid — posicion solar de la estacion (fase 1: sombra georreferenciada)
 //
 // Con (lat, lng, hora UTC, dia del anio) calcula azimut y elevacion del sol con
@@ -13,18 +36,13 @@
 // hace que el Timer del cliente avance la hora para ver la sombra moverse.
 // Cuando la plataforma exponga la hora actual, se cambia una sola linea.
 
-var horaSolUtc = 15.0     // hora UTC decimal (0..24) — placeholder del reloj
-var diaAnioSol = 280.0    // dia del anio (1..365): 280 = 7 de octubre
-var modoDemoSol = true    // si true, el Timer avanza la hora en cada tick (demo)
-var ajusteGiroSol = 0.0   // calibracion de orientacion en dispositivo (grados)
-var sombraLargo = 1.1     // longitud base de la sombra en metros (sol a 45)
-var sombraAncho = 0.75    // ancho base de la sombra en metros
-var sombraY = 0.05        // altura de la sombra sobre el suelo del Space (m)
-
 fun avanzarHoraSol(pasos) {
     horaSolUtc = horaSolUtc + pasos
-    if (horaSolUtc >= 24.0)
-        horaSolUtc = horaSolUtc - 24.0
+    // Demo de dia perpetuo: al llegar a 23 UTC (atardecer) vuelve a 12, asi
+    // el sol simulado nunca cae por debajo del horizonte y la sombra esta
+    // siempre disponible mientras el boton diga SOMBRA SI.
+    if (horaSolUtc >= 23.0)
+        horaSolUtc = 12.0
 }
 
 // atan(v) con |v| <= 1: dos reducciones a la mitad y despues Taylor
@@ -62,6 +80,11 @@ fun atan2Sol(y, x) {
 // Azimut (0 = norte, 90 = este, 180 = sur, sentido horario) y elevacion
 // (grados sobre el horizonte) del sol para lat/lng y hora UTC.
 fun solAzimutElevacion(lat, lng, horaUtc, diaAnio) {
+    // Coordenadas validas: una lat/lng corrupta produciria azimut basura en
+    // silencio (sombra en la direccion equivocada); mejor fallar con mensaje
+    // claro. require con lambda solo se evalua si la condicion falla.
+    require(lat >= -90.0 && lat <= 90.0) { "solAzimutElevacion: lat fuera de [-90, 90]" }
+    require(lng >= -180.0 && lng <= 180.0) { "solAzimutElevacion: lng fuera de [-180, 180]" }
     // ano fraccional en radianes
     val g = 2.0 * PI / 365.0 * (diaAnio - 1.0 + (horaUtc - 12.0) / 24.0)
     // ecuacion del tiempo en minutos

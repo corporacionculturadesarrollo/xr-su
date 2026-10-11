@@ -2,12 +2,15 @@
 fun getStations() {
     if (!Client.location)
         return Exception("Location is not initialized.")
-    // Fusiona la ultima posicion guardada (tabla positions) en cada estacion
+    // Fusiona la ultima posicion guardada (tabla positions) en cada estacion.
+    // Sin fila en la BD, responda el respaldo del ARCHIVO de configuracion
+    // (savedLat/savedLng/savedPy de Stations.spheroid); la base lat/lng sigue
+    // siendo la original para el RESET.
     val out = mutableListOf()
     for (station in STATIONS) {
-        var lat = station.lat
-        var lng = station.lng
-        var py = 4.0
+        var lat = station.savedLat
+        var lng = station.savedLng
+        var py = station.savedPy
         val docs =
             select * from positions p
             where p.id == station.id
@@ -16,7 +19,7 @@ fun getStations() {
             lng = d.lng
             py = d.py
         }
-        out.add(dynamicOf(id = station.id, lat = lat, lng = lng, title = station.title, text = station.text, py = py, baseLat = station.lat, baseLng = station.lng))
+        out.add(dynamicOf(id = station.id, lat = lat, lng = lng, title = station.title, text = station.text, py = py, baseLat = station.lat, baseLng = station.lng, calRumbo = station.calRumbo))
     }
     return GetStationsResult(out)
 }

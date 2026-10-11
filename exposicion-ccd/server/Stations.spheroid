@@ -3,6 +3,10 @@ val STATIONS = listOf(
         id = "space-ccd-iibague",
         lat = 4.449718,
         lng = -75.248218,
+        savedLat = 4.449594396885492,
+        savedLng = -75.24815018599152,
+        savedPy = -0.5999999046325684,
+        calRumbo = 34.466659096816386,
         title = "Un clavo... s o c — Ficción Plástica",
         text = "Ficción plástica: un martillo paralizado por su propio clavo. Ensayo completo: https://blog.culturaydesarrollo.org/un-clavo-soc-ficcion-plastica"
     ),
@@ -10,6 +14,10 @@ val STATIONS = listOf(
         id = "bogota",
         lat = 4.7108,
         lng = -74.0721,
+        savedLat = 4.7108,
+        savedLng = -74.0721,
+        savedPy = 4.0,
+        calRumbo = 0.0,
         title = "Bogotá — Cultura y desarrollo",
         text = "Estación de la Corporación Cultura y Desarrollo. culturaydesarrollo.org"
     ),
@@ -17,7 +25,29 @@ val STATIONS = listOf(
         id = "ibague",
         lat = 4.4389,
         lng = -75.2322,
+        savedLat = 4.4389,
+        savedLng = -75.2322,
+        savedPy = 4.0,
+        calRumbo = 0.0,
         title = "Ibagué — Capital musical de Colombia",
         text = "Estación de la Corporación Cultura y Desarrollo. culturaydesarrollo.org"
     )
 )
+
+// CONFIGURACION DE ESTACIONES — el "archivo de configuracion" del
+// posicionamiento (doble persistencia pedida por el usuario).
+//  - lat/lng  = BASE original: destino del boton RESET (pasa a baseLat/baseLng
+//               del cliente). NO se toca al guardar desde la app.
+//  - savedLat/savedLng/savedPy = respaldo en ARCHIVO de la ultima posicion
+//               GUARDADA en la app. La fuente de verdad en runtime es la tabla
+//               positions de la BD; aqui queda el espejo permanente, que se
+//               sincroniza (con commit aprobado) cada vez que se valida un
+//               GUARDAR en dispositivo.
+//  - calRumbo   = calibracion de brujula fijada (CAL NORTE del 8 oct 2026:
+//               34,47 grados). El cliente la carga al arrancar; cambiarla
+//               aqui = nueva calibracion permanente (o CAL en caliente desde
+//               la app, que dura la sesion).
+//  - Si la BD no tiene fila de la estacion, getStations responde con saved*.
+//  OJO: el parser NO admite lineas antes de la PRIMERA declaracion del
+//       archivo (probado: "mismatched input '\n' expecting {EOF,@,fun,val,var}")
+//       -> val va en la linea 1 y la doc, aqui al final.

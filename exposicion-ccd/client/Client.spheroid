@@ -3,65 +3,322 @@ val stationModel = Model(source = Source("/unclavo_soc.glb"))
 val mapIcon = Image(source = Source("/map_icon.png"))
 val notificationIcon = Image(source = Source("/notification_icon.png"))
 val sombraModel = Model(source = Source("/sombra_sol.glb"))
+var sombraVisible = true  // boton SOMBRA del pad: mostrar/ocultar sombras
+var rangoVis = 20.0       // metros: la escultura solo se ve a esta distancia o menos
 val stationIds = mutableSetOf()
 var isLocationCorrect = false
+var hayEstaciones = false
+var avisoStations = false
 
 var editStep = 1.0
-var editHome = Vector3(x = 0, y = 4, z = 0)
+var ajusteRumbo = 0.0    // calibracion: rumbo que marca al mirar al norte (grados)
+var calDeSesion = false  // true = ya se calibro en esta sesion (no lo pisa la config)
+var rumboSuave = 0.0      // rumbo suavizado del dial (0..360, gira sin saltos)
+var rumboQ = 0.0          // rumbo del cuaternion (0..360) — sin dynamicOf
+var saltCand = 0.0        // filtro: candidato de salto grande en curso
+var saltN = 0.0           // filtro: muestras seguidas que confirman el salto
+var rumboValido = false   // proyeccion horizontal suficiente (no congelada)
+var rumboEuler = 0.0      // eulerAngles.y crudo (solo diagnostico)
+var tBeacon = 0.0         // pulsos del faro lento (500 ms)
+var tRapido = 0.0         // pulsos del faro rapido (60 ms)
+var giroEscul = 0.0       // angulo del giro lento de las esculturas (grados)
+var msgTexto = ""         // texto pendiente para el panel emergente
+var msgSerie = 0.0        // serie del mensaje (cada pedirMsg la incrementa)
+var msgVisto = 0.0        // ultima serie pintada por el timer del panel
+var msgDur = 0.0          // duracion en segundos del mensaje actual
+var msgPulso = 0.0        // segundos acumulados visible
+var msgVistoTxt = 0.0     // ultima serie escrita en el Text (timer interior)
 var targetLat = 0.0
 var targetLng = 0.0
 var latestLat = 0.0
 var latestLng = 0.0
 var savedLat = 0.0
 var savedLng = 0.0
-var savedX = 0.0
 var savedY = 4.0
-var savedZ = 0.0
 var hasSaved = false
-var startLat = 0.0
-var startLng = 0.0
-var startX = 0.0
-var startY = 0.0
-var startZ = 0.0
-var startCaptured = false
 var baseLat = 0.0
 var baseLng = 0.0
 
+// CLIENTE — panel de posicionamiento.
+//
+// Cambio de esquema del pad (brujula):
+//  1) El pad es un DIAL CIRCULAR tipo brujula: la rosa son 4 circulos
+//     pequenos (borde azul) con el rotulo N/E/S/W INSCRITO dentro (sin
+//     flechas: el circulo no rota, no necesita corregir orientacion) y GIRA
+//     literalmente con la orientacion del usuario, con movimiento continuo
+//     (cada 60 ms y suavizado exponencial). La N apunta siempre al norte real.
+//  2) El rumbo sale del CUATERNION de la camara (Scene.camera.rotation)
+//     proyectado al plano horizontal: asi NO depende de como se sostenga el
+//     telefono (eulerAngles.y cambiaba entre horizontal y vertical y salia
+//     erratico). Si el telefono queda casi vertical o plano (proyeccion
+//     horizontal casi nula), la lectura se CONGELA en el ultimo valor valido
+//     en vez de bailar. En INTERIORES la pose de ARCore baila (Spheroid no
+//     expone magnetometro/sensor: verificado en la referencia oficial; la
+//     app de brujula del telefono si usa el sensor continuo), asi que el
+//     FARO 1 filtra: low-pass 0.35 para cambios normales y puerta de 2
+//     muestras para saltos > 45 grados.
+//  3) CAL NORTE: apuntando al norte, un toque pone el rumbo a 000. El rumbo
+//     debe CRECER al girar a la derecha (si decrece, hay espejo: corregir).
+//  4) El movimiento es ABSOLUTO por coordenadas: se desplaza la lat/lng de la
+//     estacion (no los ejes del mundo AR), asi que N mueve siempre al norte
+//     geografico pase lo que pase con la camara. La sombra y el marcador del
+//     mapa siguen a la estacion en cada movimiento.
+//  4) Arreglos del bloqueo de la botonera: sin ventana de distancia (antes los
+//     botones quedaban muertos si target no casaba con ningun nodo), null-safe
+//     en location, handleError ya NO lanza excepcion (rompia los callbacks),
+//     el PAD no desaparece si se pierde el GPS y toda accion fallida avisa
+//     con Notification en vez de morir en silencio.
+
 fun main() {
+    // ARRANQUE PREVIO A LA UI: timers de estaciones/sombra, carga de assets
+    // y callbacks de servidor/GPS. Va ANTES de MainMenu: si el montaje de la
+    // UI lanzara una excepcion, esto ya quedo registrado y la app sigue
+    // cargando objeto y GPS (el error del panel de mensajes mato todo lo
+    // que estaba despues: sin estaciones, sin GPS AQUI y sin avisos).
+    println("Exposición CCD iniciada")
+    // Diagnostico: capturar el formato real del reloj (Date solo expone toString)
+    println("RELOJ:" + Date())
+
+    // Giro lento de las esculturas sobre su eje vertical: 0,5 grados por
+    // tick de 100 ms = vuelta completa en 72 s. Un solo timer global que
+    // recorre los nodos (mismo patron que refrescarSombras).
+    Timer.schedule(period = TimeInterval(milliseconds = 100)) {
+        giroEscul = norm360(giroEscul + 0.5)
+        for (child in geoAnchor.children) {
+            if (child.model == stationModel)
+                child.eulerAngles = Vector3(y = giroEscul)
+        }
+    }
+
+    // Sombra solar: refresco periodico (modo demo: avanza la hora simulada
+    // media hora por tick — dia completo en 8 min; antes 1 h/tick dejaba la
+    // sombra oculta en "noche" del simulador casi todo el rato)
+    // + red de seguridad: si la ubicacion es correcta pero no quedaron nodos
+    //   (p. ej. tras un corte de GPS), se vuelven a pedir al servidor.
+    Timer.schedule(period = TimeInterval(seconds = 10)) {
+        if (modoDemoSol)
+            avanzarHoraSol(0.5)
+        // visibilidad20 internamente refresca las sombras (con el corte
+        // de rango) — sustituye al refrescarSombras directo.
+        visibilidad20()
+        if (isLocationCorrect && !hayEstaciones)
+            updateStations()
+    }
+
+    loadAssets {
+        println("Assets cargados")
+
+        Server.action("startup") { response, error ->
+            if (error != null) {
+                handleError(error)
+                pedirMsg("Error de servidor: " + error, 10.0)
+            } else
+                pedirMsg(response.welcome, 8.0)
+        }
+
+        Location.onChange(threshold = Distance(meters = 5)) { updateStations() }
+
+        Location.onChange(threshold = Distance(meters = 1)) { ll ->
+            latestLat = ll.lat
+            latestLng = ll.lng
+            visibilidad20()
+        }
+
+        Location.onCorrect {
+            println("Location correct")
+            isLocationCorrect = true
+            updateStations()
+        }
+    }
+
     MainMenu {
+        println("UI: MainMenu empezando")
         val panel = Container(isVisible = false, bottom = 20dp, left = 8dp, backgroundColor = Color(rgba = 0x00000066)) {
             Vertical(spacing = 4dp, left = 6dp, right = 6dp, top = 6dp, bottom = 6dp) {
                 Container {
                     Horizontal(spacing = 4dp) {
+                        Container { Button(text = "SUBIR", width = 100dp, height = 40dp, backgroundColor = Color(rgba = 0x007AFFCC)).onClick { moverPanel(0.0, 0.0, editStep) } }
+                        Container { Button(text = "BAJAR", width = 100dp, height = 40dp, backgroundColor = Color(rgba = 0x007AFFCC)).onClick { moverPanel(0.0, 0.0, -editStep) } }
+                    }
+                }
+                // DIAL CIRCULAR: la rosa gira literalmente con la orientacion
+                // (los 8 elementos orbitan el centro con left/top cada 60 ms;
+                // rotation/Angle no hacia efecto en runtime) y debajo se lee
+                // el diagnostico del rumbo.
+                Container(width = 308dp, height = 212dp) {
+                    Container(width = 176dp, height = 176dp, left = 66dp, cornerRadius = 88dp, backgroundColor = Color(rgba = 0x00000088), borderWidth = 2dp, borderColor = Color(rgba = 0x33FFFFFF)) {
+                        // La rosa: 4 circulos pequenos (30dp, borde azul,
+                        // radio 56 alrededor del centro 88,88) con el
+                        // rotulo N/E/S/W INSCRITO dentro (la letra viaja
+                        // DENTRO del circulo: el circulo no rota, asi que no
+                        // necesita corregir orientacion). El FARO 2 (debajo,
+                        // en este mismo contenedor) los reposiciona con el
+                        // rumbo via left/top; la letra siempre queda derecha.
+                        Container(width = 176dp, height = 176dp, left = 0dp, top = 0dp) {
+                            val circN = Container(width = 30dp, height = 30dp, top = 17dp, left = 73dp, cornerRadius = 15dp, borderWidth = 2dp, borderColor = Color(rgba = 0x007AFFCC)) {
+                                val letraN = Text(text = "N", width = 30dp, height = 30dp, left = 0dp, top = 0dp, textSize = 13dp, fontWeight = "bold", textAlign = "center", verticalAlign = "center", textColor = Color(rgba = 0xFFFFFFFF))
+                                letraN.onClick { moverPanel(0.0, editStep, 0.0) }
+                            }
+                            circN.onClick { moverPanel(0.0, editStep, 0.0) }
+
+                            val circE = Container(width = 30dp, height = 30dp, top = 73dp, left = 129dp, cornerRadius = 15dp, borderWidth = 2dp, borderColor = Color(rgba = 0x007AFFCC)) {
+                                val letraE = Text(text = "E", width = 30dp, height = 30dp, left = 0dp, top = 0dp, textSize = 13dp, fontWeight = "bold", textAlign = "center", verticalAlign = "center", textColor = Color(rgba = 0xFFFFFFFF))
+                                letraE.onClick { moverPanel(90.0, editStep, 0.0) }
+                            }
+                            circE.onClick { moverPanel(90.0, editStep, 0.0) }
+
+                            val circS = Container(width = 30dp, height = 30dp, top = 129dp, left = 73dp, cornerRadius = 15dp, borderWidth = 2dp, borderColor = Color(rgba = 0x007AFFCC)) {
+                                val letraS = Text(text = "S", width = 30dp, height = 30dp, left = 0dp, top = 0dp, textSize = 13dp, fontWeight = "bold", textAlign = "center", verticalAlign = "center", textColor = Color(rgba = 0xFFFFFFFF))
+                                letraS.onClick { moverPanel(180.0, editStep, 0.0) }
+                            }
+                            circS.onClick { moverPanel(180.0, editStep, 0.0) }
+
+                            val circW = Container(width = 30dp, height = 30dp, top = 73dp, left = 17dp, cornerRadius = 15dp, borderWidth = 2dp, borderColor = Color(rgba = 0x007AFFCC)) {
+                                val letraW = Text(text = "W", width = 30dp, height = 30dp, left = 0dp, top = 0dp, textSize = 13dp, fontWeight = "bold", textAlign = "center", verticalAlign = "center", textColor = Color(rgba = 0xFFFFFFFF))
+                                letraW.onClick { moverPanel(270.0, editStep, 0.0) }
+                            }
+                            circW.onClick { moverPanel(270.0, editStep, 0.0) }
+
+                            // FARO 2 (60 ms): suavizado del rumbo y ORBITA de
+                            // los 4 circulos con left/top (DP recibe Double).
+                            // Los pulsos tRapido del texto dicen si este timer
+                            // vive: si suben pero la rosa no gira, falla el
+                            // setter.
+                            Timer.schedule(period = TimeInterval(milliseconds = 60)) {
+                                tRapido = tRapido + 1.0
+                                if (tRapido > 359.0)
+                                    tRapido = 0.0
+                                if (rumboValido) {
+                                    val mostrado = norm360(ajusteRumbo + rumboQ)
+                                    // Suavizado con tope: alpha 0.15 y maximo
+                                    // 15 grados por tick (250 grados/s): los
+                                    // saltos de la plataforma AR se convierten
+                                    // en un barrido suave, no en un tirón.
+                                    var paso = 0.15 * deltaCorto(mostrado, rumboSuave)
+                                    if (paso > 15.0)
+                                        paso = 15.0
+                                    if (paso < -15.0)
+                                        paso = -15.0
+                                    rumboSuave = norm360(rumboSuave + paso)
+                                    val rad = rumboSuave * PI / 180.0
+                                    val sn = sin(rad)
+                                    val cs = cos(rad)
+                                    // Centro del circulo = left+15, top+15
+                                    circN.left = DP(73.0 - 56.0 * sn)
+                                    circN.top = DP(73.0 - 56.0 * cs)
+                                    circE.left = DP(73.0 + 56.0 * cs)
+                                    circE.top = DP(73.0 - 56.0 * sn)
+                                    circS.left = DP(73.0 + 56.0 * sn)
+                                    circS.top = DP(73.0 + 56.0 * cs)
+                                    circW.left = DP(73.0 - 56.0 * cs)
+                                    circW.top = DP(73.0 + 56.0 * sn)
+                                }
+                            }
+                        }
+                        // Indice fijo (no gira): marca el frente del usuario.
+                        Text(text = "▼", width = 40dp, top = 0dp, left = 68dp, textSize = 14dp, textAlign = "center", textColor = Color(rgba = 0xFFFF3B30))
+                    }
+                    val txtRumbo = Text(text = "iniciando...", width = 308dp, top = 184dp, textAlign = "center", textSize = 14dp, fontWeight = "bold", textColor = Color(rgba = 0xFFFFFFFF))
+                    // FARO 1 (250 ms = periodo ya probado en los paneles de
+                    // mensaje): calcula el rumbo por cuaternion, lo FILTRA
+                    // (low-pass + puerta de saltos: la pose de ARCore es
+                    // erratico en interiores y Spheroid no expone el
+                    // magnetometro) y escribe el texto. Asigna el texto ANTES
+                    // de leer la camara: si Scene.camera.rotation fallara, se
+                    // ve el faro corto "5n 6m..." y ya sabemos que ese es el
+                    // culpable.
+                    Timer.schedule(period = TimeInterval(milliseconds = 250)) {
+                        tBeacon = tBeacon + 1.0
+                        if (tBeacon > 359.0)
+                            tBeacon = 0.0
+                        txtRumbo.text = "5" + entero(tBeacon) + " 6" + entero(tRapido)
+                        rumboEuler = norm360(Scene.camera.eulerAngles.y)
+                        val q = Scene.camera.rotation
+                        // Normalizado: asume |q|=1, pero si la plataforma da
+                        // un cuaternion no unitario la proyeccion se va de
+                        // escala (y arrastraria la lectura con la postura).
+                        val nn = sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w)
+                        if (nn > 0.01) {
+                            val ix = q.x / nn
+                            val iy = q.y / nn
+                            val iz = q.z / nn
+                            val iw = q.w / nn
+                            val fx = -2.0 * iw * iy - 2.0 * iz * ix
+                            val fz = -1.0 + 2.0 * ix * ix + 2.0 * iy * iy
+                            val mag2 = fx * fx + fz * fz
+                            // Histeresis anti-erratica: el rumbo solo se
+                            // ACTUALIZA con proyeccion fuerte (mag2 >= 0.22,
+                            // menos ruido de azimuth); en la banda 0.08..0.22
+                            // se mantiene el ultimo valor; por debajo de 0.08
+                            // se congela. Evita parpadeos en el umbral.
+                            if (mag2 >= 0.22) {
+                                rumboValido = true
+                                // FILTRO ANTI-ERRATICO: cambios normales
+                                // (<= 45) pasan con low-pass 0.35 (el ruido
+                                // indoor se promedia); un salto mayor exige
+                                // 2 muestras seguidas en la misma direccion
+                                // antes de aceptarse (girar rapido responde
+                                // en 0,5 s; el tirón de un paso, no).
+                                val cand = norm360(atan2Sol(fx, -fz) * 180.0 / PI)
+                                val dif = deltaCorto(cand, rumboQ)
+                                if (abs(dif) <= 45.0) {
+                                    rumboQ = norm360(rumboQ + 0.35 * dif)
+                                    saltN = 0.0
+                                } else {
+                                    if (abs(deltaCorto(cand, saltCand)) <= 30.0) {
+                                        saltN = saltN + 1.0
+                                    } else {
+                                        saltN = 1.0
+                                    }
+                                    saltCand = cand
+                                    if (saltN >= 2.0) {
+                                        rumboQ = cand
+                                        saltN = 0.0
+                                    }
+                                }
+                            } else if (mag2 < 0.08) {
+                                rumboValido = false
+                            }
+                        } else {
+                            rumboValido = false
+                        }
+                        txtRumbo.text = "5" + entero(tBeacon) + " 6" + entero(tRapido) + " E" + entero(rumboEuler) + " Q" + entero(rumboQ) + marcar(rumboValido)
+                    }
+
+                }
+                Container {
+                    Horizontal(spacing = 4dp) {
                         Container { Button(text = "PASO", width = 100dp, height = 40dp, backgroundColor = Color(rgba = 0x007AFFCC)).onClick {
-                            if (editStep == 0.5)
+                            if (editStep == 0.1)
+                                setStep(0.5, "0.5")
+                            else if (editStep == 0.5)
                                 setStep(1.0, "1")
                             else if (editStep == 1.0)
                                 setStep(5.0, "5")
                             else
-                                setStep(0.5, "0.5")
+                                setStep(0.1, "0.1")
                         } }
                         Container { Button(text = "AYUDA", width = 100dp, height = 40dp, backgroundColor = Color(rgba = 0x007AFFCC)).onClick {
-                            Notification.show(icon = notificationIcon, text = "PASO: medida. VOLVER: ultimo guardado. RESET: base del Space")
+                            pedirMsg("La rosa GIRA contigo: el rumbo debe\nCRECER al girar a la derecha.\nCAL NORTE: mira al horizonte al norte y pulsa.\nAjuste actual: " + entero(norm360(ajusteRumbo)) + "°   Rumbo: " + entero(norm360(ajusteRumbo + rumboQ)) + "°\nPASO: medida | VOLVER: al guardado | RESET: base\nSOMBRA: alterna el panel\nH sim: " + entero(horaSolUtc) + " h   Y del objeto: " + savedY + "\nToca el mensaje para cerrarlo.", 25.0)
                         } }
-                    }
-                }
-                Container {
-                    Horizontal(spacing = 4dp) {
-                        Container { Button(text = "SUBIR", width = 100dp, height = 40dp, backgroundColor = Color(rgba = 0x007AFFCC)).onClick { move(0.0, editStep, 0.0) } }
-                        Container { Button(text = "BAJAR", width = 100dp, height = 40dp, backgroundColor = Color(rgba = 0x007AFFCC)).onClick { move(0.0, -editStep, 0.0) } }
-                    }
-                }
-                Container {
-                    Horizontal(spacing = 4dp) {
-                        Container { Button(text = "W", width = 100dp, height = 40dp, backgroundColor = Color(rgba = 0x007AFFCC)).onClick { move(-editStep, 0.0, 0.0) } }
-                        Container { Button(text = "E", width = 100dp, height = 40dp, backgroundColor = Color(rgba = 0x007AFFCC)).onClick { move(editStep, 0.0, 0.0) } }
-                    }
-                }
-                Container {
-                    Horizontal(spacing = 4dp) {
-                        Container { Button(text = "N", width = 100dp, height = 40dp, backgroundColor = Color(rgba = 0x007AFFCC)).onClick { move(0.0, 0.0, -editStep) } }
-                        Container { Button(text = "S", width = 100dp, height = 40dp, backgroundColor = Color(rgba = 0x007AFFCC)).onClick { move(0.0, 0.0, editStep) } }
+                        Container {
+                            val btnSombra = Button(text = "SOMBRA SI", width = 100dp, height = 40dp, backgroundColor = Color(rgba = 0x007AFFCC))
+                            btnSombra.onClick {
+                                sombraVisible = !sombraVisible
+                                if (sombraVisible) {
+                                    btnSombra.text = "SOMBRA SI"
+                                    refrescarSombras()
+                                    pedirMsg("Sombra visible", 4.0)
+                                } else {
+                                    btnSombra.text = "SOMBRA NO"
+                                    for (child in geoAnchor.children) {
+                                        if (child.model == sombraModel)
+                                            child.scale = Vector3(0)
+                                    }
+                                    pedirMsg("Sombra oculta", 4.0)
+                                }
+                            }
+                        }
                     }
                 }
                 Container {
@@ -75,6 +332,9 @@ fun main() {
                         Container { Button(text = "VOLVER", width = 100dp, height = 40dp, backgroundColor = Color(rgba = 0x007AFFCC)).onClick { volverPos() } }
                         Container { Button(text = "RESET", width = 100dp, height = 40dp, backgroundColor = Color(rgba = 0x007AFFCC)).onClick { resetPos() } }
                     }
+                }
+                Container {
+                    Button(text = "CAL NORTE", width = 210dp, height = 40dp, backgroundColor = Color(rgba = 0x007AFFCC)).onClick { calibrarNorte() }
                 }
             }
         }
@@ -95,46 +355,52 @@ fun main() {
             geoAnchor.children.clear()
             Map.markers.clear()
             stationIds.clear()
+            hayEstaciones = false
+            avisoStations = false
             isLocationCorrect = false
             panel.isVisible = false
-            pad.isVisible = false
+            // El PAD NO se oculta: antes, si el GPS se caia, el boton desaparecia
+            // y no habia forma de reabrir la botonera (el "bloqueo" reportado).
         }
+        // PANEL DE MENSAJES: banda ancha y alta con texto grande que dura
+        // lo que diga pedirMsg (Notification se iba demasiado rapido y
+        // achatado). Tap encima lo cierra antes de tiempo. Va al FINAL de
+        // MainMenu: si su montaje fallara, pad/Location/startup ya quedaron
+        // registrados antes y la app sigue viva. caja y texto van como
+        // hermanos (el texto despues = se dibuja encima).
+        println("UI: antes del panel de mensajes")
+        val msgCaja = Container(isVisible = false, top = 64dp, left = 12dp, width = 336dp, height = 184dp, backgroundColor = Color(rgba = 0x000000DD), cornerRadius = 12dp, borderWidth = 1dp, borderColor = Color(rgba = 0x55FFFFFF)) {
+            val msgTxt = Text(text = " ", width = 320dp, height = 168dp, left = 8dp, top = 8dp, textSize = 13dp, textAlign = "center", textColor = Color(rgba = 0xFFFFFFFF))
+            println("UI: texto ok")
+            msgTxt.onClick { esconderMsg() }
+            println("UI: click ok")
+            // Timer interior: solo escribe el texto (nunca toca msgCaja).
+            Timer.schedule(period = TimeInterval(milliseconds = 250)) {
+                if (msgSerie != msgVistoTxt) {
+                    msgVistoTxt = msgSerie
+                    msgTxt.text = msgTexto
+                }
+            }
+            println("UI: timer interior ok")
+        }
+        println("UI: caja+texto ok")
+        // Timer exterior: visibilidad y duracion (solo toca msgCaja).
+        Timer.schedule(period = TimeInterval(milliseconds = 250)) {
+            if (msgSerie != msgVisto) {
+                msgVisto = msgSerie
+                msgCaja.isVisible = true
+                msgPulso = 0.0
+            } else if (msgCaja.isVisible == true) {
+                msgPulso = msgPulso + 0.25
+                if (msgPulso >= msgDur)
+                    msgCaja.isVisible = false
+            }
+        }
+        println("UI: timer ok")
+        println("UI: panel de mensajes montado")
     }
 
-    println("Exposición CCD iniciada")
-    // Diagnostico: capturar el formato real del reloj (Date solo expone toString)
-    println("RELOJ:" + Date())
-
-    // Sombra solar: refresco periodico (modo demo: avanza la hora simulada)
-    Timer.schedule(period = TimeInterval(seconds = 10)) {
-        if (modoDemoSol)
-            avanzarHoraSol(1.0)
-        refrescarSombras()
-    }
-
-    loadAssets {
-        println("Assets cargados")
-
-        Server.action("startup") { response, error ->
-            if (error != null)
-                handleError(error)
-            else
-                Notification.show(icon = notificationIcon, text = response.welcome)
-        }
-
-        Location.onChange(threshold = Distance(meters = 5)) { updateStations() }
-
-        Location.onChange(threshold = Distance(meters = 1)) { ll ->
-            latestLat = ll.lat
-            latestLng = ll.lng
-        }
-
-        Location.onCorrect {
-            println("Location correct")
-            isLocationCorrect = true
-            updateStations()
-        }
-    }
+    println("UI: MainMenu montado")
 }
 
 fun loadAssets(callback) {
@@ -166,9 +432,15 @@ fun updateStations() {
         return
 
     Server.action("getStations") { response, error ->
-        if (error != null)
-            handleError(error)
-        else {
+        if (error != null) {
+            println("getStations: " + error)
+            // un unico aviso por sesion para no spamear cada 5 m de movimiento
+            if (!avisoStations) {
+                avisoStations = true
+                pedirMsg("Sin conexion con el servidor", 10.0)
+            }
+        } else {
+            avisoStations = false
             println("${response.stations.size} estaciones cargadas")
             println("DEVICE " + latestLat + "," + latestLng)
             var vistos = 0
@@ -176,12 +448,14 @@ fun updateStations() {
                 if (vistos == 0) {
                     val loc1 = child.location
                     val p1 = child.position
-                    println("NODO loc=" + loc1.lat + "," + loc1.lng + " pos=" + p1.x + "," + p1.y + "," + p1.z)
+                    if (loc1 != null)
+                        println("NODO loc=" + loc1.lat + "," + loc1.lng + " pos=" + p1.x + "," + p1.y + "," + p1.z)
                 }
                 vistos = vistos + 1
             }
             for (station in response.stations)
                 addStation(station)
+            visibilidad20()
         }
     }
 }
@@ -211,12 +485,16 @@ fun addStation(station) {
     }
     node.location = LatLng(station.lat, station.lng)
     geoAnchor.children.add(node)
+    hayEstaciones = true
 
-    // Sombra solar (fase 1): elipse georreferenciada que sigue al sol del sitio
+    // Sombra solar (fase 1): elipse georreferenciada que sigue al sol del sitio.
+    // La altura NACE pegada al pie del objeto (origen del nodo + sombraY),
+    // no a la del geoAnchor: ver alturaSombra().
+    val posEst = node.position
     val sombra = ModelNode(
         model = sombraModel,
         scale = Vector3(0),
-        position = Vector3(x = 0.0, y = sombraY, z = 0.0)
+        position = Vector3(x = 0.0, y = posEst.y + sombraY, z = 0.0)
     )
     sombra.location = LatLng(station.lat, station.lng)
     geoAnchor.children.add(sombra)
@@ -225,25 +503,68 @@ fun addStation(station) {
     val marker = MapMarker(location = LatLng(station.lat, station.lng), icon = mapIcon)
     Map.markers.add(marker)
 
-    // Rotación suave para llamar la atención
-    val girar = RotationAnimation(
-        by = Vector3(y = 360),
-        duration = TimeInterval(seconds = 8),
-        interpolation = "linear"
-    )
-    node.getAnimationController(girar).play(loop = true)
+    // El giro lento sobre su eje vertical lo aplica el timer global de
+    // main() (0,5 grados cada 100 ms = vuelta en 72 s). La RotationAnimation
+    // anterior (360 en 8 s) era demasiado rapida y no se vio fiable; el
+    // setter eulerAngles si funciona (lo usa la sombra solar).
 
     // Al tocar la estación: ficha
     node.onTap {
-        Notification.show(
-            icon = notificationIcon,
-            text = "${station.title} — ${station.text}"
-        )
+        pedirMsg("${station.title} — ${station.text}", 15.0)
     }
+
+    // CAL fijado en el ARCHIVO de configuracion (calRumbo): aqui AL FINAL,
+    // despues de dar de alta nodo/sombra/marker, para que un desfase de
+    // versiones (servidor viejo sin calRumbo) no pueda abortar el alta de
+    // la estacion (el error del build 48 mato justo el alta de la
+    // escultura). Solo la estacion de la escultura lo lee.
+    if (station.id == "space-ccd-iibague") {
+        if (!calDeSesion)
+            ajusteRumbo = station.calRumbo
+        println("CAL config ajusteRumbo=" + ajusteRumbo + " deSesion=" + calDeSesion)
+    }
+}
+
+// Altura de la sombra: la del objeto de SU estacion (misma geo) + sombraY.
+// La estacion mas cercana a la sombra ES la suya (las demas estan a kilometros).
+// Sin esto la sombra quedaria fija respecto al geoAnchor mientras el objeto
+// lo calibra el usuario (dY/GUARDAR, RESET a y=4, VOLVER a savedY) y flotaba
+// por encima del objeto en vez de apoyarse a su pie.
+fun alturaSombra(lat, lng) {
+    var best = sombraY
+    var bestD = 999999999.0
+    for (child in geoAnchor.children) {
+        if (child.model == stationModel) {
+            val loc = child.location
+            if (loc != null) {
+                val a = loc.lat - lat
+                val b = loc.lng - lng
+                val d = a * a + b * b
+                if (d < bestD) {
+                    bestD = d
+                    val pos = child.position
+                    best = pos.y + sombraY
+                }
+            }
+        }
+    }
+    return best
 }
 
 // ----- Sombra solar (fase 1: Vía A del estudio de luz ambiental) -----
 fun aplicarSol(n, lat, lng) {
+    if (!sombraVisible) {
+        n.scale = Vector3(0)
+        return
+    }
+    // Mismo rango de 20 m que la escultura: mas lejos, sombra oculta.
+    // (Si aun no hay posicion del dispositivo, no se aplica el corte.)
+    if (latestLat != 0.0 || latestLng != 0.0) {
+        if (metrosA(lat, lng) > rangoVis) {
+            n.scale = Vector3(0)
+            return
+        }
+    }
     val sol = solAzimutElevacion(lat, lng, horaSolUtc, diaAnioSol)
     val largo = largoSombra(sol.elev)
     if (largo == 0.0) {
@@ -251,7 +572,15 @@ fun aplicarSol(n, lat, lng) {
         n.scale = Vector3(0)
     } else {
         n.scale = Vector3(x = largo * sombraLargo, y = 1.0, z = sombraAncho)
-        n.eulerAngles = Vector3(y = giroSombra(sol.az) + ajusteGiroSol)
+        val giro = giroSombra(sol.az) + ajusteGiroSol
+        n.eulerAngles = Vector3(y = giro)
+        // La elipse del GLB viene CENTRADA en el origen y la sombra nacia en
+        // x=0,z=0: media elipse cruzaba por el propio objeto. Se desplaza la
+        // media longitud a lo largo del eje +x YA girado, para que la sombra
+        // nazca en la base y se aleje del sol.
+        val d = largo * sombraLargo
+        val psi = giro * PI / 180.0
+        n.position = Vector3(x = d * cos(psi), y = alturaSombra(lat, lng), z = -d * sin(psi))
     }
 }
 
@@ -268,7 +597,7 @@ fun refrescarSombras() {
 fun setStep(v, label) {
     editStep = v
     println("PASO=" + label)
-    Notification.show(icon = notificationIcon, text = "Paso: " + label + " m")
+    pedirMsg("Paso: " + label + " m", 4.0)
 }
 
 fun dist2(lat, lng) {
@@ -277,185 +606,432 @@ fun dist2(lat, lng) {
     return a * a + b * b
 }
 
-fun move(dx, dy, dz) {
-    var bestD = 999999.0
+// Distancia en metros desde la ultima posicion del dispositivo hasta una
+// coordenada (rango de visibilidad).
+fun metrosA(lat, lng) {
+    val dLat = (latestLat - lat) * metrosPorGradoLat(lat)
+    val dLng = (latestLng - lng) * metrosPorGradoLng(lat)
+    return sqrt(dLat * dLat + dLng * dLng)
+}
+
+// VISIBILIDAD A 20 m: cada estacion solo se ve si el usuario esta a
+// rangoVis metros o menos de ELLA (mas alla se oculta colapsando la
+// escala 1 -> 0; al acercarse reaparece). Sin isVisible en nodos AR:
+// se colapsa/restaura la escala, como ya se hace con la sombra. La
+// sombra reaparece con su logica completa (sol/toggle/noche) y con el
+// mismo rango, porque aplicarSol tambien la chequea.
+fun visibilidad20() {
+    if (!isLocationCorrect)
+        return
+    if (latestLat == 0.0 && latestLng == 0.0)
+        return
     for (child in geoAnchor.children) {
-        val loc = child.location
-        val d = dist2(loc.lat, loc.lng)
-        if (d < bestD && d < 0.000001)
-            bestD = d
-    }
-    var moved = false
-    for (child in geoAnchor.children) {
-        val loc = child.location
-        if (dist2(loc.lat, loc.lng) == bestD && child.model == stationModel) {
-            val p = child.position
-            if (!startCaptured) {
-                startX = p.x
-                startY = p.y
-                startZ = p.z
-                startLat = targetLat
-                startLng = targetLng
-                startCaptured = true
-                println("BASE pos=" + p.x + "," + p.y + "," + p.z + " geo=" + startLat + "," + startLng)
+        if (child.model == stationModel) {
+            val loc = child.location
+            if (loc != null) {
+                if (metrosA(loc.lat, loc.lng) > rangoVis)
+                    child.scale = Vector3(0)
+                else
+                    child.scale = Vector3(1)
             }
-            val np = Vector3(x = p.x + dx, y = p.y + dy, z = p.z + dz)
-            child.position = np
-            moved = true
-            println("OFFSET x=" + np.x + " y=" + np.y + " z=" + np.z)
         }
     }
-    if (!moved)
-        println("OFFSET sin cercano bestD=" + bestD)
+    refrescarSombras()
+}
+
+// ----- Brujula: rumbo absoluto del norte (0 = N, 90 = E, 180 = S, 270 = W) -----
+
+fun norm360(v) {
+    var a = v
+    for (i in 1..10) {
+        if (a >= 360.0)
+            a = a - 360.0
+        if (a < 0.0)
+            a = a + 360.0
+    }
+    return a
+}
+
+// El rumbo por cuaternion se calcula en el FARO 1 (arriba, en el Timer de
+// 500 ms) sin dynamicOf: guarda rumboQ/rumboValido/rumboEuler en variables
+// globales. Asi un fallo en Scene.camera.rotation se localiza mirando el
+// texto: si el faro "5n 6m..." se congela, ese acceso es el que falla.
+
+// Direccion mas corta entre dos angulos (-180..180): giro sin saltos.
+fun deltaCorto(nuevo, viejo) {
+    var d = norm360(nuevo - viejo)
+    if (d > 180.0)
+        d = d - 360.0
+    return d
+}
+
+// Marca de validez para el texto de diagnostico.
+fun marcar(ok) {
+    if (ok)
+        return "v"
+    return "f"
+}
+
+// Glifo de flecha cuya punta apunta a una direccion de pantalla dada
+// (0 = arriba, 45 = arriba-derecha, 90 = derecha...), con corte a 22.5
+// grados: 8 direcciones, las puntas de la rosa siempre miran hacia fuera
+// a su cardinal (sin API de rotacion de texto, el glifo es lo mas fino
+// posible).
+fun flecha(ang) {
+    val k = entero(norm360(ang + 22.5) / 45.0)
+    if (k == 1)
+        return "↗"
+    if (k == 2)
+        return "▶"
+    if (k == 3)
+        return "↘"
+    if (k == 4)
+        return "▼"
+    if (k == 5)
+        return "↙"
+    if (k == 6)
+        return "◀"
+    if (k == 7)
+        return "↖"
+    return "▲"
+}
+
+// Parte entera de un rumbo en [0, 360).
+fun entero(a) {
+    var v = a
+    var g = 0
+    for (i in 0..359) {
+        if (v >= 1.0) {
+            v = v - 1.0
+            g = g + 1
+        }
+    }
+    return g
+}
+
+// Panel emergente de mensajes: Notification.show desaparecia demasiado
+// rapido y en una banda estrecha donde no cabia el texto. pedirMsg() deja
+// el texto y la duracion en variables globales; el timer del Screen (junto
+// al panel) lo pinta y lo oculta al cumplir el tiempo. Tocar el mensaje
+// tambien lo cierra (esconderMsg).
+fun pedirMsg(texto, segs) {
+    msgTexto = texto
+    msgDur = segs
+    msgPulso = 0.0
+    msgSerie = msgSerie + 1.0
+}
+
+// Cierra el panel de mensaje en el siguiente tick del timer.
+fun esconderMsg() {
+    msgDur = 0.0
+    msgPulso = 0.0
+}
+
+// Un toque apuntando al norte pone el rumbo a 000.
+fun calibrarNorte() {
+    if (!rumboValido) {
+        pedirMsg("No puedo calibrar: el rumbo no es valido todavia.\nManten el telefono horizontal y mira al horizonte\nhacia el norte; vuelve a pulsar cuando la rosa gire.", 10.0)
+        return
+    }
+    ajusteRumbo = norm360(0.0 - rumboQ)
+    calDeSesion = true
+    println("CAL ajusteRumbo=" + ajusteRumbo + " E=" + rumboEuler + " Q=" + rumboQ)
+    pedirMsg("CALIBRADO a 000: la N debe quedar ARriba.\n(E=" + entero(rumboEuler) + " Q=" + entero(rumboQ) + ")", 8.0)
+}
+
+// ----- Conversion geodesica: metros por grado (serie estandar, solo cos) -----
+
+fun metrosPorGradoLat(lat) {
+    val p = lat * PI / 180.0
+    return 111132.92 - 559.82 * cos(2.0 * p) + 1.175 * cos(4.0 * p) - 0.0023 * cos(6.0 * p)
+}
+
+fun metrosPorGradoLng(lat) {
+    val p = lat * PI / 180.0
+    return 111412.84 * cos(p) - 93.5 * cos(3.0 * p) + 0.118 * cos(5.0 * p)
+}
+
+fun avisoSinEstacion() {
+    if (isLocationCorrect)
+        pedirMsg("La escultura aun no esta cargada:\nespera unos segundos", 8.0)
+    else
+        pedirMsg("Esperando GPS: camina al descubierto", 10.0)
+}
+
+// La sombra sigue a la estacion: se coge la sombra mas cercana a la nueva geo
+// (en la practica es la suya: las demas estan a kilometros).
+fun sombraDe(nlat, nlng) {
+    var bestD = 999999999.0
+    for (child in geoAnchor.children) {
+        if (child.model == sombraModel) {
+            val loc = child.location
+            if (loc != null) {
+                val a = loc.lat - nlat
+                val b = loc.lng - nlng
+                val d = a * a + b * b
+                if (d < bestD)
+                    bestD = d
+            }
+        }
+    }
+    for (child in geoAnchor.children) {
+        if (child.model == sombraModel) {
+            val loc = child.location
+            if (loc != null) {
+                val a = loc.lat - nlat
+                val b = loc.lng - nlng
+                if (a * a + b * b == bestD) {
+                    child.location = LatLng(nlat, nlng)
+                    aplicarSol(child, nlat, nlng)
+                }
+            }
+        }
+    }
+}
+
+// MapMarker.location es val: para que el mapa siga a la estacion hay que
+// recrear los marcadores con la ubicacion actual de cada nodo.
+fun refrescarMarcadores() {
+    Map.markers.clear()
+    for (child in geoAnchor.children) {
+        if (child.model == stationModel) {
+            val loc = child.location
+            if (loc != null)
+                Map.markers.add(MapMarker(location = LatLng(loc.lat, loc.lng), icon = mapIcon))
+        }
+    }
+}
+
+// Desplazamiento de la botonera. desfase = 0/90/180/270 (azimut ABSOLUTO de
+// cada boton del dial: N/E/S/W), metros = paso horizontal, dY = paso vertical
+// (SUBIR/BAJAR). El horizontal va en COORDENADAS: delta de lat/lng segun el
+// azimut fijo del boton, asi N mueve siempre al norte geografico.
+fun moverPanel(desfase, metros, dY) {
+    if (!isLocationCorrect) {
+        avisoSinEstacion()
+        return
+    }
+    // dos pasos, sin ventana de distancia y null-safe: la estacion mas cercana
+    // al objetivo siempre se encuentra (antes, si no habia nodo dentro de la
+    // ventana de 1e-6 grados, el boton no hacia nada).
+    var bestD = 999999999.0
+    for (child in geoAnchor.children) {
+        if (child.model == stationModel) {
+            val loc = child.location
+            if (loc != null) {
+                val d = dist2(loc.lat, loc.lng)
+                if (d < bestD)
+                    bestD = d
+            }
+        }
+    }
+    var hecho = false
+    for (child in geoAnchor.children) {
+        if (child.model == stationModel) {
+            val loc = child.location
+            if (loc != null) {
+                if (dist2(loc.lat, loc.lng) == bestD) {
+                    if (metros != 0.0) {
+                        val az = norm360(desfase)
+                        val r = az * PI / 180.0
+                        val nlat = loc.lat + metros * cos(r) / metrosPorGradoLat(loc.lat)
+                        val nlng = loc.lng + metros * sin(r) / metrosPorGradoLng(loc.lat)
+                        child.location = LatLng(nlat, nlng)
+                        targetLat = nlat
+                        targetLng = nlng
+                        sombraDe(nlat, nlng)
+                        refrescarMarcadores()
+                        println("BRUJULA az=" + az + " m=" + metros + " lat=" + nlat + " lng=" + nlng)
+                    }
+                    if (dY != 0.0) {
+                        val p = child.position
+                        child.position = Vector3(x = p.x, y = p.y + dY, z = p.z)
+                        println("ALTURA y=" + (p.y + dY))
+                    }
+                    hecho = true
+                }
+            }
+        }
+    }
+    if (!hecho)
+        avisoSinEstacion()
 }
 
 fun resetPos() {
-    var bestD = 999999.0
+    if (!isLocationCorrect) {
+        avisoSinEstacion()
+        return
+    }
+    var bestD = 999999999.0
     for (child in geoAnchor.children) {
-        val loc = child.location
-        val d = dist2(loc.lat, loc.lng)
-        if (d < bestD && d < 0.000001)
-            bestD = d
+        if (child.model == stationModel) {
+            val loc = child.location
+            if (loc != null) {
+                val d = dist2(loc.lat, loc.lng)
+                if (d < bestD)
+                    bestD = d
+            }
+        }
     }
     var done = false
     for (child in geoAnchor.children) {
-        val loc = child.location
-        if (dist2(loc.lat, loc.lng) == bestD && child.model == stationModel) {
-            val p = child.position
-            if (!startCaptured) {
-                startX = p.x
-                startY = p.y
-                startZ = p.z
-                startLat = targetLat
-                startLng = targetLng
-                startCaptured = true
-                println("BASE pos=" + p.x + "," + p.y + "," + p.z + " geo=" + startLat + "," + startLng)
+        if (child.model == stationModel) {
+            val loc = child.location
+            if (loc != null) {
+                if (dist2(loc.lat, loc.lng) == bestD) {
+                    child.location = LatLng(baseLat, baseLng)
+                    child.position = Vector3(y = 4.0)
+                    targetLat = baseLat
+                    targetLng = baseLng
+                    sombraDe(baseLat, baseLng)
+                    refrescarMarcadores()
+                    done = true
+                    println("RESET base lat=" + baseLat + " lng=" + baseLng)
+                }
             }
-            val np = Vector3(x = startX + (baseLng - startLng) * 110980.0, y = 4.0, z = startZ + (startLat - baseLat) * 111320.0)
-            child.location = LatLng(baseLat, baseLng)
-            child.position = np
-            targetLat = baseLat
-            targetLng = baseLng
-            done = true
-            println("RESET base lat=" + baseLat + " lng=" + baseLng + " pos=" + np.x + "," + np.y + "," + np.z)
         }
     }
     if (!done)
-        println("RESET sin cercano")
+        avisoSinEstacion()
 }
 
 fun placeHere() {
     if (latestLat == 0.0 && latestLng == 0.0) {
         println("GPS sin fix")
-        Notification.show(icon = notificationIcon, text = "GPS sin fix: camina 2 m y reintenta")
+        pedirMsg("GPS sin fix: camina 2 m y reintenta", 10.0)
         return
     }
-    var bestD = 999999.0
+    if (!isLocationCorrect) {
+        avisoSinEstacion()
+        return
+    }
+    var bestD = 999999999.0
     for (child in geoAnchor.children) {
-        val loc = child.location
-        val d = dist2(loc.lat, loc.lng)
-        if (d < bestD && d < 0.000001)
-            bestD = d
+        if (child.model == stationModel) {
+            val loc = child.location
+            if (loc != null) {
+                val d = dist2(loc.lat, loc.lng)
+                if (d < bestD)
+                    bestD = d
+            }
+        }
     }
     var done = false
     for (child in geoAnchor.children) {
-        val loc = child.location
-        if (dist2(loc.lat, loc.lng) == bestD && child.model == stationModel) {
-            val p = child.position
-            if (!startCaptured) {
-                startX = p.x
-                startY = p.y
-                startZ = p.z
-                startLat = targetLat
-                startLng = targetLng
-                startCaptured = true
-                println("BASE pos=" + p.x + "," + p.y + "," + p.z + " geo=" + startLat + "," + startLng)
+        if (child.model == stationModel) {
+            val loc = child.location
+            if (loc != null) {
+                if (dist2(loc.lat, loc.lng) == bestD) {
+                    child.location = LatLng(latestLat, latestLng)
+                    targetLat = latestLat
+                    targetLng = latestLng
+                    sombraDe(latestLat, latestLng)
+                    refrescarMarcadores()
+                    done = true
+                    println("PLACE lat=" + latestLat + " lng=" + latestLng)
+                }
             }
-            val np = Vector3(x = startX + (latestLng - startLng) * 110980.0, y = p.y, z = startZ + (startLat - latestLat) * 111320.0)
-            child.location = LatLng(latestLat, latestLng)
-            child.position = np
-            done = true
-            println("PLACE lat=" + latestLat + " lng=" + latestLng + " pos=" + np.x + "," + np.y + "," + np.z)
         }
     }
-    if (done) {
-        targetLat = latestLat
-        targetLng = latestLng
-        Notification.show(icon = notificationIcon, text = "Escultura en tu posicion: retrocede unos metros para verla")
-    } else
-        println("PLACE sin cercano")
+    if (done)
+        pedirMsg("Escultura en tu posicion:\nretrocede unos metros para verla", 8.0)
+    else
+        avisoSinEstacion()
 }
 
 fun savePos() {
-    var bestD = 999999.0
+    if (!isLocationCorrect) {
+        avisoSinEstacion()
+        return
+    }
+    var bestD = 999999999.0
     for (child in geoAnchor.children) {
-        val loc = child.location
-        val d = dist2(loc.lat, loc.lng)
-        if (d < bestD && d < 0.000001)
-            bestD = d
+        if (child.model == stationModel) {
+            val loc = child.location
+            if (loc != null) {
+                val d = dist2(loc.lat, loc.lng)
+                if (d < bestD)
+                    bestD = d
+            }
+        }
     }
     var done = false
     for (child in geoAnchor.children) {
-        val loc = child.location
-        if (dist2(loc.lat, loc.lng) == bestD && child.model == stationModel) {
-            val p = child.position
-            if (startCaptured) {
-                savedLat = startLat - (p.z - startZ) / 111320.0
-                savedLng = startLng + (p.x - startX) / 110980.0
-            } else {
-                savedLat = loc.lat
-                savedLng = loc.lng
-            }
-            savedY = p.y
-            hasSaved = true
-            done = true
-            println("GUARDAR geo lat=" + savedLat + " lng=" + savedLng + " y=" + savedY)
-            val req = dynamicOf(stationId = "space-ccd-iibague", lat = savedLat, lng = savedLng, py = savedY)
-            Server.action("savePosition", request = req) { response, error ->
-                if (error != null)
-                    handleError(error)
-                else
-                    Notification.show(icon = notificationIcon, text = "Posicion guardada en el servidor")
+        if (child.model == stationModel) {
+            val loc = child.location
+            if (loc != null) {
+                if (dist2(loc.lat, loc.lng) == bestD) {
+                    // A la coordenada viva del nodo: sin marcos intermedios,
+                    // lo que se guarda es exactamente lo que se ve en el mapa.
+                    savedLat = loc.lat
+                    savedLng = loc.lng
+                    savedY = child.position.y
+                    hasSaved = true
+                    done = true
+                    println("GUARDAR geo lat=" + savedLat + " lng=" + savedLng + " y=" + savedY)
+                    val req = dynamicOf(stationId = "space-ccd-iibague", lat = savedLat, lng = savedLng, py = savedY)
+                    Server.action("savePosition", request = req) { response, error ->
+                        if (error != null) {
+                            println("savePosition: " + error)
+                            pedirMsg("No se pudo guardar: " + error, 10.0)
+                        } else
+                            pedirMsg("Posicion guardada en el servidor", 6.0)
+                    }
+                }
             }
         }
     }
     if (!done)
-        println("GUARDAR sin cercano")
+        avisoSinEstacion()
 }
 
 fun volverPos() {
     if (!hasSaved) {
         println("VOLVER sin guardado")
-        Notification.show(icon = notificationIcon, text = "Aun no hay posicion guardada")
+        pedirMsg("Aun no hay posicion guardada", 8.0)
         return
     }
-    var bestD = 999999.0
+    if (!isLocationCorrect) {
+        avisoSinEstacion()
+        return
+    }
+    var bestD = 999999999.0
     for (child in geoAnchor.children) {
-        val loc = child.location
-        val d = dist2(loc.lat, loc.lng)
-        if (d < bestD && d < 0.000001)
-            bestD = d
+        if (child.model == stationModel) {
+            val loc = child.location
+            if (loc != null) {
+                val d = dist2(loc.lat, loc.lng)
+                if (d < bestD)
+                    bestD = d
+            }
+        }
     }
     var done = false
     for (child in geoAnchor.children) {
-        val loc = child.location
-        if (dist2(loc.lat, loc.lng) == bestD && child.model == stationModel) {
-            val pc = child.position
-            var np = Vector3(x = pc.x, y = savedY, z = pc.z)
-            if (startCaptured)
-                np = Vector3(x = startX + (savedLng - startLng) * 110980.0, y = savedY, z = startZ + (startLat - savedLat) * 111320.0)
-            child.location = LatLng(savedLat, savedLng)
-            child.position = np
-            targetLat = savedLat
-            targetLng = savedLng
-            done = true
-            println("VOLVER lat=" + savedLat + " lng=" + savedLng + " pos=" + np.x + "," + np.y + "," + np.z)
+        if (child.model == stationModel) {
+            val loc = child.location
+            if (loc != null) {
+                if (dist2(loc.lat, loc.lng) == bestD) {
+                    val pc = child.position
+                    child.location = LatLng(savedLat, savedLng)
+                    child.position = Vector3(x = pc.x, y = savedY, z = pc.z)
+                    targetLat = savedLat
+                    targetLng = savedLng
+                    sombraDe(savedLat, savedLng)
+                    refrescarMarcadores()
+                    done = true
+                    println("VOLVER lat=" + savedLat + " lng=" + savedLng)
+                }
+            }
         }
     }
     if (!done)
-        println("VOLVER sin cercano")
+        avisoSinEstacion()
 }
 
 fun handleError(error) {
-    error("Error: $error")
+    // OJO: error() de Spheroid Script lanza IllegalStateException y corta la
+    // cadena de callbacks (una de las causas del bloqueo de la botonera).
+    // Aqui solo se registra; el aviso visible se hace en cada punto de llamada.
+    println("ERROR: " + error)
 }
