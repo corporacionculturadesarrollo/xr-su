@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Marcador de Básquetbol</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='46' fill='%23ffb020'/><path d='M50 4v92M4 50h92M17 17c22 14 44 14 66 0M17 83c22-14 44-14 66 0' stroke='%230b0d10' stroke-width='5' fill='none'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Doto:wght@500;700;900&family=Barlow+Semi+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0b0d10;
+    --panel:#14181f;
+    --edge:#252b36;
+    --led:#ffb020;
+    --led-glow:rgba(255,176,32,.22);
+    --red:#ff4438;
+    --red-glow:rgba(255,68,56,.25);
+    --text:#cfd6e2;
+    --muted:#687285;
+    --sans:"Barlow Semi Condensed",system-ui,sans-serif;
+    --dot:"Doto",ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    display:flex;flex-direction:column;
+    overflow:hidden;
+    -webkit-tap-highlight-color:transparent;
+  }
+  body::after{ /* viñeta de pista */
+    content:"";position:fixed;inset:0;pointer-events:none;
+    background:radial-gradient(120% 90% at 50% 38%,transparent 55%,rgba(0,0,0,.55) 100%);
+  }
+  button{font-family:inherit;cursor:pointer;color:inherit;background:none;border:none}
+  button:focus-visible,input:focus-visible,select:focus-visible{
+    outline:2px solid var(--led);outline-offset:2px;border-radius:4px}
+
+  /* ── barra superior ── */
+  header{
+    display:flex;align-items:center;gap:.75rem;
+    padding:.5rem .9rem;border-bottom:1px solid var(--edge);
+    background:var(--panel);position:relative;z-index:5;
+  }
+  header h1{font-size:.95rem;font-weight:600;letter-spacing:.06em;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  header .spacer{flex:1}
+  .iconbtn{
+    width:38px;height:38px;display:grid;place-items:center;
+    border:1px solid var(--edge);border-radius:6px;color:var(--muted);
+    transition:color .15s,border-color .15s;font-size:1.05rem;
+  }
+  .iconbtn:hover{color:var(--led);border-color:var(--led)}
+  .iconbtn:disabled{opacity:.35;cursor:default}
+  .iconbtn:disabled:hover{color:var(--muted);border-color:var(--edge)}
+
+  /* ── tablero ── */
+  main{
+    flex:1;display:grid;min-height:0;
+    grid-template-columns:1fr auto 1fr;
+    grid-template-areas:"home centro away";
+  }
+  .team{
+    grid-area:home;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:clamp(.4rem,1.5vh,1rem);padding:1rem .5rem;min-height:0;
+  }
+  .team.away{grid-area:away}
+  .team-name{
+    font-family:var(--sans);font-weight:700;font-size:clamp(1.1rem,2.6vw,1.7rem);
+    color:var(--text);text-align:center;background:none;border:none;width:90%;
+    letter-spacing:.02em;
+  }
+  .team-name::placeholder{color:var(--muted)}
+  .score{
+    font-family:var(--dot);font-weight:900;
+    font-size:clamp(4.5rem,15vh,10rem);line-height:1;
+    color:var(--led);text-shadow:0 0 28px var(--led-glow);
+    font-variant-numeric:tabular-nums;user-select:none;
+    transition:opacity .1s;
+  }
+  .score.flash{animation:flash .25s}
+  @keyframes flash{50%{opacity:.25}}
+  .score.zero{color:#3a3f4a;text-shadow:none}
+
+  .fouls{display:flex;align-items:center;gap:.5rem}
+  .fouls .label{font-size:.78rem;font-weight:600;letter-spacing:.14em;color:var(--muted)}
+  .fouls .num{font-family:var(--dot);font-weight:700;font-size:1.5rem;color:var(--text);min-width:1.6ch;text-align:center}
+  .fouls .num.limit{color:var(--red)}
+  .mini{
+    width:32px;height:32px;border:1px solid var(--edge);border-radius:6px;
+    color:var(--muted);font-size:1rem;line-height:1;transition:all .15s;
+  }
+  .mini:hover{color:var(--led);border-color:var(--led)}
+
+  .score-btns{display:flex;gap:.45rem}
+  .pts{
+    min-width:clamp(3.2rem,7vw,4.2rem);min-height:clamp(3rem,8vh,3.8rem);
+    border:1px solid var(--edge);border-radius:8px;
+    font-weight:700;font-size:1.05rem;color:var(--led);
+    transition:background .12s,color .12s,transform .08s;
+  }
+  .pts:hover{background:var(--led);color:var(--bg)}
+  .pts:active{transform:scale(.94)}
+  .foul-btn{
+    min-width:clamp(3.2rem,7vw,4.2rem);min-height:clamp(3rem,8vh,3.8rem);
+    border:1px solid var(--edge);border-radius:8px;font-weight:600;font-size:.95rem;
+    color:var(--muted);transition:all .12s;letter-spacing:.05em;
+  }
+  .foul-btn:hover{border-color:var(--red);color:var(--red)}
+  .foul-btn:active{transform:scale(.94)}
+
+  /* ── centro: relojes ── */
+  .center{
+    grid-area:centro;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:clamp(.3rem,1.2vh,.8rem);
+    padding:1rem clamp(.6rem,2vw,1.6rem);
+    border-left:1px solid var(--edge);border-right:1px solid var(--edge);
+    background:linear-gradient(180deg,rgba(255,176,32,.025),transparent 40%);
+  }
+  .period-row{display:flex;align-items:center;gap:.7rem}
+  .period-row .cap{font-size:.75rem;font-weight:600;letter-spacing:.18em;color:var(--muted)}
+  .period-num{font-family:var(--dot);font-weight:700;font-size:1.15rem;color:var(--led)}
+  .game-clock{
+    font-family:var(--dot);font-weight:900;
+    font-size:clamp(3.2rem,9vh,5.5rem);line-height:1;
+    color:var(--text);font-variant-numeric:tabular-nums;user-select:none;
+    text-shadow:0 0 22px rgba(207,214,226,.12);
+  }
+  .game-clock.urgent{color:var(--led);text-shadow:0 0 26px var(--led-glow)}
+  .game-clock.done{color:var(--red);text-shadow:0 0 26px var(--red-glow)}
+
+  .shot-wrap{display:flex;align-items:center;gap:.6rem;margin-top:.1rem}
+  .poss-arrow{
+    font-size:1.3rem;color:var(--led);opacity:0;transition:opacity .15s;line-height:1;
+    user-select:none;
+  }
+  .poss-arrow.on{opacity:1;text-shadow:0 0 12px var(--led-glow)}
+  .shot-clock{
+    font-family:var(--dot);font-weight:700;
+    font-size:clamp(1.9rem,5vh,2.9rem);line-height:1;
+    color:var(--red);font-variant-numeric:tabular-nums;user-select:none;
+    min-width:2ch;text-align:center;
+  }
+  .shot-clock.warn{text-shadow:0 0 18px var(--red-glow);animation:pulse 1s steps(2) infinite}
+  @keyframes pulse{50%{opacity:.55}}
+  .shot-clock.off{color:#3a3f4a;text-shadow:none;animation:none}
+  .shot-cap{font-size:.68rem;font-weight:600;letter-spacing:.16em;color:var(--muted);text-align:center}
+
+  .transport{display:flex;align-items:center;gap:.6rem;margin-top:clamp(.3rem,1.5vh,.9rem)}
+  .play{
+    min-width:9.5rem;min-height:2.9rem;border-radius:8px;font-weight:700;
+    font-size:1rem;letter-spacing:.08em;transition:all .15s;
+  }
+  .play.start{background:var(--led);color:#14181f}
+  .play.start:hover{background:#ffc44d}
+  .play.pause{border:1px solid var(--edge);color:var(--text)}
+  .play.pause:hover{border-color:var(--led);color:var(--led)}
+  .play:active{transform:scale(.96)}
+  .play:disabled{opacity:.4;cursor:default}
+
+  /* ── hints ── */
+  footer{
+    padding:.4rem 1rem;text-align:center;font-size:.72rem;color:var(--muted);
+    border-top:1px solid var(--edge);background:var(--panel);letter-spacing:.04em;
+  }
+  footer kbd{
+    font-family:inherit;border:1px solid var(--edge);border-radius:4px;
+    padding:0 .35rem;margin:0 .1rem;font-size:.68rem;
+  }
+
+  /* ── diálogo de ajustes ── */
+  dialog{
+    background:var(--panel);color:var(--text);border:1px solid var(--edge);
+    border-radius:12px;padding:1.4rem;width:min(22rem,92vw);
+  }
+  dialog::backdrop{background:rgba(0,0,0,.6)}
+  dialog h2{font-size:1.05rem;font-weight:700;margin-bottom:1rem;letter-spacing:.03em}
+  .field{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:.85rem}
+  .field label{font-size:.92rem;color:var(--text)}
+  .field select,.field input{
+    background:var(--bg);border:1px solid var(--edge);border-radius:6px;
+    color:var(--text);font-family:inherit;font-size:.95rem;padding:.35rem .5rem;
+  }
+  .field input[type=number]{width:4.5rem;text-align:center}
+  .dur{display:flex;align-items:center;gap:.35rem}
+  .dur span{color:var(--muted);font-size:.85rem}
+  .dlg-actions{display:flex;gap:.6rem;justify-content:flex-end;margin-top:1.2rem}
+  .dlg-actions button{
+    padding:.55rem 1.1rem;border-radius:8px;font-weight:600;font-size:.92rem;transition:all .15s;
+  }
+  .dlg-cancel{border:1px solid var(--edge);color:var(--muted)}
+  .dlg-cancel:hover{color:var(--text);border-color:var(--text)}
+  .dlg-ok{background:var(--led);color:#14181f}
+  .dlg-ok:hover{background:#ffc44d}
+
+  /* ── móvil ── */
+  @media (max-width:720px){
+    main{
+      grid-template-columns:1fr 1fr;
+      grid-template-rows:auto 1fr;
+      grid-template-areas:"centro centro" "home away";
+    }
+    .center{
+      border-left:none;border-right:none;border-bottom:1px solid var(--edge);
+      flex-direction:row;flex-wrap:wrap;justify-content:center;gap:.5rem 1rem;padding:.6rem;
+    }
+    .center .period-row{order:1;width:100%;justify-content:center}
+    .game-clock{order:2;font-size:clamp(2.6rem,11vw,3.6rem)}
+    .shot-wrap{order:3;margin-top:0}
+    .transport{order:4;margin-top:0}
+    .score{font-size:clamp(3.4rem,17vw,5.5rem)}
+    .score-btns{flex-wrap:wrap;justify-content:center}
+  }
+  /* ── landscape móvil / tablet baja: relojes a la izquierda, equipos apilados a la derecha ── */
+  @media (orientation:landscape) and (max-height:560px){
+    header{padding:.25rem .6rem;gap:.4rem}
+    header h1{font-size:.8rem}
+    .iconbtn{width:30px;height:30px;font-size:.92rem}
+    footer{padding:.2rem .6rem;font-size:.64rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+    main{
+      grid-template-columns:minmax(0,auto) 1fr 1fr;
+      grid-template-rows:1fr;
+      grid-template-areas:"centro home away";
+    }
+    /* los equipos conservan su columna; se comprimen verticalmente */
+    .team{grid-area:home;justify-content:center;gap:.2rem;padding:.3rem .4rem}
+    .team.away{grid-area:away}
+
+    .center{
+      border-right:1px solid var(--edge);border-left:none;
+      justify-content:center;gap:.2rem;padding:.4rem .7rem;
+    }
+    .center .period-row{gap:.35rem}
+    .game-clock{font-size:clamp(2.2rem,6.5vh,3rem)}
+    .shot-clock{font-size:clamp(1.3rem,4vh,1.9rem)}
+    .transport{margin-top:.2rem;gap:.4rem}
+    .play{min-width:6.2rem;min-height:2.2rem;font-size:.88rem}
+
+    .team-name{font-size:clamp(.9rem,2.2vh,1.1rem);width:96%}
+    .score{font-size:clamp(2.8rem,17vh,5rem)}
+    .fouls{gap:.3rem}
+    .fouls .label{font-size:.62rem;letter-spacing:.1em}
+    .fouls .num{font-size:1.05rem}
+    .mini{width:26px;height:26px;font-size:.82rem}
+    .score-btns{gap:.3rem}
+    .pts,.foul-btn{min-width:clamp(2.6rem,5vw,3.2rem);min-height:clamp(2rem,6.5vh,2.6rem);font-size:.88rem}
+    .foul-btn{font-size:.78rem}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:.01ms !important;transition-duration:.01ms !important}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Marcador de Básquetbol</h1>
+  <div class="spacer"></div>
+  <button class="iconbtn" id="btnUndo" title="Deshacer última anotación" aria-label="Deshacer" disabled>↩</button>
+  <button class="iconbtn" id="btnSettings" title="Ajustes" aria-label="Ajustes">⚙</button>
+  <button class="iconbtn" id="btnReset" title="Restablecer partido" aria-label="Restablecer partido">⟲</button>
+  <button class="iconbtn" id="btnFull" title="Pantalla completa (proyección)" aria-label="Pantalla completa">⛶</button>
+</header>
+
+<main>
+  <!-- LOCAL -->
+  <section class="team home" id="teamHome">
+    <input class="team-name" id="nameHome" value="Local" maxlength="14" aria-label="Nombre del equipo local" placeholder="Local">
+    <div class="score zero" id="scoreHome" aria-live="polite">0</div>
+    <div class="fouls">
+      <span class="label">FALTAS</span>
+      <button class="mini" data-foul="home" data-delta="-1" aria-label="Quitar falta al local">−</button>
+      <span class="num" id="foulsHome">0</span>
+      <button class="mini" data-foul="home" data-delta="1" aria-label="Añadir falta al local">+</button>
+    </div>
+    <div class="score-btns">
+      <button class="pts" data-team="home" data-pts="1">+1</button>
+      <button class="pts" data-team="home" data-pts="2">+2</button>
+      <button class="pts" data-team="home" data-pts="3">+3</button>
+      <button class="foul-btn" data-foul="home" data-delta="1">Falta</button>
+    </div>
+  </section>
+
+  <!-- CENTRO -->
+  <section class="center">
+    <div class="period-row">
+      <button class="mini" id="btnPrevPeriod" aria-label="Periodo anterior">‹</button>
+      <span class="cap">PERÍODO</span>
+      <span class="period-num" id="periodNum">1</span>
+      <span class="cap">DE</span>
+      <span class="period-num" id="periodsTotal">4</span>
+      <button class="mini" id="btnNextPeriod" aria-label="Periodo siguiente">›</button>
+    </div>
+
+    <div class="game-clock" id="gameClock" aria-live="off">10:00</div>
+
+    <div class="shot-wrap" id="shotWrap">
+      <span class="poss-arrow" id="arrowHome" aria-hidden="true">◀</span>
+      <div>
+        <div class="shot-clock" id="shotClock">24</div>
+        <div class="shot-cap">POSESIÓN</div>
+      </div>
+      <span class="poss-arrow" id="arrowAway" aria-hidden="true">▶</span>
+    </div>
+
+    <div class="transport">
+      <button class="play start" id="btnPlay">Iniciar</button>
+      <button class="mini" id="btnPoss" title="Cambiar posesión (P)" aria-label="Cambiar posesión">⇄</button>
+      <button class="mini" id="btnShotReset" title="Reiniciar reloj de posesión (S)" aria-label="Reiniciar reloj de posesión">24⟲</button>
+    </div>
+  </section>
+
+  <!-- VISITANTE -->
+  <section class="team away" id="teamAway">
+    <input class="team-name" id="nameAway" value="Visitante" maxlength="14" aria-label="Nombre del equipo visitante" placeholder="Visitante">
+    <div class="score zero" id="scoreAway" aria-live="polite">0</div>
+    <div class="fouls">
+      <span class="label">FALTAS</span>
+      <button class="mini" data-foul="away" data-delta="-1" aria-label="Quitar falta al visitante">−</button>
+      <span class="num" id="foulsAway">0</span>
+      <button class="mini" data-foul="away" data-delta="1" aria-label="Añadir falta al visitante">+</button>
+    </div>
+    <div class="score-btns">
+      <button class="pts" data-team="away" data-pts="1">+1</button>
+      <button class="pts" data-team="away" data-pts="2">+2</button>
+      <button class="pts" data-team="away" data-pts="3">+3</button>
+      <button class="foul-btn" data-foul="away" data-delta="1">Falta</button>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <kbd>Espacio</kbd> iniciar / pausar &nbsp; <kbd>S</kbd> reloj de posesión &nbsp; <kbd>P</kbd> cambiar posesión &nbsp; <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> anotar local &nbsp; <kbd>Shift</kbd>+<kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> anotar visitante
+</footer>
+
+<dialog id="settingsDlg">
+  <h2>Ajustes del partido</h2>
+  <div class="field">
+    <label for="setMin">Duración del período</label>
+    <div class="dur">
+      <input type="number" id="setMin" min="0" max="60" value="10"> <span>min</span>
+      <input type="number" id="setSec" min="0" max="59" value="0"> <span>seg</span>
+    </div>
+  </div>
+  <div class="field">
+    <label for="setPeriods">Número de períodos</label>
+    <select id="setPeriods">
+      <option value="2">2</option>
+      <option value="4" selected>4</option>
+    </select>
+  </div>
+  <div class="field">
+    <label for="setShot">Reloj de posesión</label>
+    <select id="setShot">
+      <option value="0">Desactivado</option>
+      <option value="14">14 segundos</option>
+      <option value="24" selected>24 segundos</option>
+    </select>
+  </div>
+  <div class="dlg-actions">
+    <button class="dlg-cancel" id="dlgCancel">Cancelar</button>
+    <button class="dlg-ok" id="dlgOk">Aplicar</button>
+  </div>
+</dialog>
+
+<script>
+"use strict";
+/* ── estado ── */
+const DEFAULTS = {
+  home:{name:"Local",score:0,fouls:0},
+  away:{name:"Visitante",score:0,fouls:0},
+  period:1, periods:4,
+  periodSec:600,
+  shotLen:24,
+  possession:"home",
+  clockMs:600000, shotMs:24000,
+  running:false
+};
+let S = load() || structuredClone(DEFAULTS);
+if(!S.shotLen) S.shotLen = 0;
+S.running = false;
+
+function save(){ localStorage.setItem("marcador-basquet", JSON.stringify(S)); }
+function load(){
+  try{ const r = JSON.parse(localStorage.getItem("marcador-basquet"));
+       return r && typeof r==="object" && r.home ? r : null; }catch{ return null; }
+}
+
+/* ── referencias ── */
+const $ = id => document.getElementById(id);
+const el = {
+  scoreHome:$("scoreHome"), scoreAway:$("scoreAway"),
+  foulsHome:$("foulsHome"), foulsAway:$("foulsAway"),
+  nameHome:$("nameHome"), nameAway:$("nameAway"),
+  periodNum:$("periodNum"), periodsTotal:$("periodsTotal"),
+  gameClock:$("gameClock"), shotClock:$("shotClock"), shotWrap:$("shotWrap"),
+  arrowHome:$("arrowHome"), arrowAway:$("arrowAway"),
+  btnPlay:$("btnPlay"), btnUndo:$("btnUndo")
+};
+
+/* ── buzzer (Web Audio, sin archivos externos) ── */
+let audioCtx = null;
+function buzzer(dur = .9, freq = 165){
+  try{
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if(audioCtx.state === "suspended") audioCtx.resume();
+    const t = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+    osc.type = "square"; osc.frequency.value = freq;
+    gain.gain.setValueAtTime(.22, t);
+    gain.gain.exponentialRampToValueAtTime(.001, t + dur);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(t); osc.stop(t + dur);
+  }catch{/* audio no disponible */}
+}
+
+/* ── formateo ── */
+function fmtClock(ms){
+  ms = Math.max(0, ms);
+  if(ms >= 60000){
+    const m = Math.floor(ms/60000), s = Math.floor((ms%60000)/1000);
+    return m + ":" + String(s).padStart(2,"0");
+  }
+  const cs = Math.floor(ms/10), s = Math.floor(cs/100), c = cs%100;
+  return "0:" + String(s).padStart(2,"0") + "." + String(c).padStart(2,"0");
+}
+
+/* ── render ── */
+function render(){
+  el.scoreHome.textContent = S.home.score;
+  el.scoreAway.textContent = S.away.score;
+  el.scoreHome.classList.toggle("zero", S.home.score === 0);
+  el.scoreAway.classList.toggle("zero", S.away.score === 0);
+  el.foulsHome.textContent = S.home.fouls;
+  el.foulsAway.textContent = S.away.fouls;
+  el.nameHome.value = S.home.name;
+  el.nameAway.value = S.away.name;
+  el.periodNum.textContent = S.period;
+  el.periodsTotal.textContent = S.periods;
+
+  el.gameClock.textContent = fmtClock(S.clockMs);
+  el.gameClock.classList.toggle("urgent", S.clockMs > 0 && S.clockMs <= 60000);
+  el.gameClock.classList.toggle("done", S.clockMs <= 0);
+
+  const shotOn = S.shotLen > 0;
+  el.shotWrap.style.visibility = shotOn ? "visible" : "hidden";
+  el.shotClock.textContent = shotOn ? Math.min(S.shotLen, Math.ceil(S.shotMs/1000)) : "–";
+  el.shotClock.classList.toggle("warn", shotOn && S.shotMs <= 5000 && S.shotMs > 0);
+  el.arrowHome.classList.toggle("on", shotOn && S.possession === "home");
+  el.arrowAway.classList.toggle("on", shotOn && S.possession === "away");
+
+  el.btnPlay.textContent = S.running ? "Pausa" : "Iniciar";
+  el.btnPlay.className = "play " + (S.running ? "pause" : "start");
+  el.btnUndo.disabled = undoStack.length === 0;
+  save();
+}
+
+/* ── bucle de reloj (drift-free) ── */
+let rafId = null, endAt = 0;
+function tickLoop(){
+  const now = performance.now();
+  S.clockMs = endAt.game - now;
+  if(S.shotLen > 0) S.shotMs = endAt.shot - now;
+
+  let stop = false;
+  if(S.clockMs <= 0){ S.clockMs = 0; stop = true; buzzer(1.1, 150); }
+  if(S.shotLen > 0 && S.shotMs <= 0){ S.shotMs = 0; stop = true; buzzer(.55, 300); }
+
+  if(stop){ S.running = false; render(); return; }
+  renderLight();
+  rafId = requestAnimationFrame(tickLoop);
+}
+function renderLight(){ // sin escribir en localStorage cada frame
+  el.gameClock.textContent = fmtClock(S.clockMs);
+  el.gameClock.classList.toggle("urgent", S.clockMs <= 60000);
+  el.shotClock.textContent = Math.min(S.shotLen, Math.ceil(S.shotMs/1000));
+  el.shotClock.classList.toggle("warn", S.shotMs <= 5000 && S.shotMs > 0);
+}
+function start(){
+  if(S.running || S.clockMs <= 0) return;
+  S.running = true;
+  endAt = { game: performance.now() + S.clockMs,
+            shot: S.shotLen > 0 ? performance.now() + S.shotMs : 0 };
+  rafId = requestAnimationFrame(tickLoop);
+  render();
+}
+function pause(){
+  S.running = false;
+  if(rafId) cancelAnimationFrame(rafId);
+  render();
+}
+function toggle(){ S.running ? pause() : start(); }
+
+/* ── anotaciones y faltas ── */
+const undoStack = [];
+function flash(node){ node.classList.remove("flash"); void node.offsetWidth; node.classList.add("flash"); }
+function addScore(team, pts){
+  S[team].score += pts;
+  undoStack.push({type:"score", team, pts});
+  flash(team === "home" ? el.scoreHome : el.scoreAway);
+  if(S.shotLen > 0) resetShot(false);   // canasta → posesión nueva
+  render();
+}
+function addFoul(team, delta){
+  S[team].fouls = Math.max(0, S[team].fouls + delta);
+  undoStack.push({type:"foul", team, delta});
+  render();
+}
+function undo(){
+  const a = undoStack.pop();
+  if(!a) return;
+  if(a.type === "score") S[a.team].score = Math.max(0, S[a.team].score - a.pts);
+  else S[a.team].fouls = Math.max(0, S[a.team].fouls - a.delta);
+  render();
+}
+
+/* ── posesión ── */
+function resetShot(switchPoss){
+  if(switchPoss) S.possession = S.possession === "home" ? "away" : "home";
+  S.shotMs = S.shotLen * 1000;
+  if(S.shotLen > 0 && S.running){
+    endAt.shot = performance.now() + S.shotMs;
+  }
+  render();
+}
+
+/* ── períodos ── */
+function goPeriod(p){
+  if(p < 1 || p > S.periods) return;
+  S.period = p;
+  S.clockMs = S.periodSec * 1000;
+  S.shotMs = S.shotLen * 1000;
+  S.possession = "home";
+  if(S.running) pause(); else render();
+}
+
+/* ── eventos ── */
+document.addEventListener("click", e => {
+  const t = e.target.closest("button");
+  if(!t) return;
+  if(t.dataset.team)  addScore(t.dataset.team, +t.dataset.pts);
+  else if(t.dataset.foul) addFoul(t.dataset.foul, +t.dataset.delta);
+});
+
+el.btnPlay.addEventListener("click", toggle);
+$("btnUndo").addEventListener("click", undo);
+$("btnPoss").addEventListener("click", () => resetShot(true));
+$("btnShotReset").addEventListener("click", () => resetShot(false));
+$("btnPrevPeriod").addEventListener("click", () => goPeriod(S.period - 1));
+$("btnNextPeriod").addEventListener("click", () => goPeriod(S.period + 1));
+
+$("btnReset").addEventListener("click", () => {
+  if(!confirm("¿Restablecer todo el partido? Se borrarán marcador, faltas y relojes.")) return;
+  pause();
+  const periods = S.periods, periodSec = S.periodSec, shotLen = S.shotLen;
+  S = structuredClone(DEFAULTS);
+  S.periods = periods; S.periodSec = periodSec; S.shotLen = shotLen;
+  S.clockMs = periodSec * 1000; S.shotMs = shotLen * 1000;
+  undoStack.length = 0;
+  render();
+});
+
+$("btnFull").addEventListener("click", () => {
+  if(document.fullscreenElement) document.exitFullscreen();
+  else document.documentElement.requestFullscreen?.();
+});
+
+el.nameHome.addEventListener("input", () => { S.home.name = el.nameHome.value; save(); });
+el.nameAway.addEventListener("input", () => { S.away.name = el.nameAway.value; save(); });
+
+/* ── ajustes ── */
+const dlg = $("settingsDlg");
+$("btnSettings").addEventListener("click", () => {
+  $("setMin").value = Math.floor(S.periodSec/60);
+  $("setSec").value = S.periodSec%60;
+  $("setPeriods").value = S.periods;
+  $("setShot").value = S.shotLen;
+  dlg.showModal();
+});
+$("dlgCancel").addEventListener("click", () => dlg.close());
+$("dlgOk").addEventListener("click", () => {
+  S.periodSec = (+$("setMin").value || 0)*60 + (+$("setSec").value || 0);
+  if(S.periodSec <= 0) S.periodSec = 600;
+  S.periods = +$("setPeriods").value;
+  S.shotLen = +$("setShot").value;
+  if(S.period > S.periods) S.period = S.periods;
+  S.clockMs = S.periodSec * 1000;
+  S.shotMs = S.shotLen * 1000;
+  undoStack.length = 0;
+  if(S.running) pause(); else render();
+  dlg.close();
+});
+
+/* ── teclado ── */
+document.addEventListener("keydown", e => {
+  if(e.target.tagName === "INPUT" || e.target.tagName === "SELECT" || dlg.open) return;
+  if(e.code === "Space"){ e.preventDefault(); toggle(); }
+  else if(e.key === "s" || e.key === "S") resetShot(false);
+  else if(e.key === "p" || e.key === "P") resetShot(true);
+  else if(["1","2","3"].includes(e.key)){
+    addScore(e.shiftKey ? "away" : "home", +e.key);
+  }
+});
+
+/* ── arranque ── */
+render();
+</script>
+</body>
+</html>
