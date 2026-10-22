@@ -58,6 +58,25 @@ Spheroid Script, recuperados por ingeniería inversa del binario del runtime
 `search_language` y `get_term`; si falta el archivo esas tools quedan vacías
 (con aviso en stderr al arrancar). Sin secretos.
 
+## Renovación del JWT (investigado 22 oct 2026)
+
+- Flujo real de Demiurge (bundle `app.*.js`): **authorization code + PKCE (S256)**
+  con oidc-client.js clásico (`response_type:"code"`, `scope:"openid Platform.Api"`,
+  silent renew por iframe con `prompt=none` + `silent_redirect_uri`).
+- **No existe refresh token** porque Demiurge **no pide `offline_access`**. El
+  servidor **sí tendría el grant habilitado** para el cliente (sonda: token basura
+  con `grant_type=refresh_token` → `invalid_grant`, no `unauthorized_client`), o
+  sea que el tope está en el cliente, no en el servidor: pedirle a Spheroid que
+  añada `offline_access` al scope habilitaría la renovación automática larga.
+- **Device flow NO habilitado** para `Demiurge.Frontend` (`unauthorized_client`).
+- Vida observada del access token: **24 días** (`nbf` 7 oct → `exp` 31 oct 2026).
+- Renovación práctica hoy: **abrir Demiurge con sesión viva** → el silent renew
+  emite un token nuevo (otra ventana de 24 días) en
+  `sessionStorage["oidc.user:https://auth.spheroid.io:Demiurge.Frontend"]` →
+  re-extraer y actualizar `SPHEROID_TOKEN`. Hay MFA (`amr: ["mfa","pwd"]`): ningún
+  flujo es automatizable sin el usuario.
+- `connect/revocation` existe — no usar a la ligera: revoca el token vigente.
+
 ## Estado de la API (recuperado 7 oct 2026)
 
 1. **URL base y auth**: `https://platform-api.spheroid.io` + JWT OIDC de

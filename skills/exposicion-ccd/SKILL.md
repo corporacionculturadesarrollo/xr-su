@@ -38,7 +38,7 @@ slash: true
 
 ## API (recuperada y verificada el 7 oct 2026)
 
-- Base `https://platform-api.spheroid.io` — auth `Authorization: Bearer <JWT>` (OIDC `auth.spheroid.io`, client `Demiurge.Frontend`, scope `Platform.Api`; el JWT vigente **vence 31 oct 2026** — la tool `status` del MCP muestra solo la fecha y los días restantes; re-extraerlo de `sessionStorage["oidc.user:https://auth.spheroid.io:Demiurge.Frontend"]` con sesión activa en Demiurge).
+- Base `https://platform-api.spheroid.io` — auth `Authorization: Bearer <JWT>` (OIDC `auth.spheroid.io`, client `Demiurge.Frontend`, scope `Platform.Api`; el JWT vigente **vence 31 oct 2026** — la tool `status` del MCP muestra solo la fecha y los días restantes; re-extraerlo de `sessionStorage["oidc.user:https://auth.spheroid.io:Demiurge.Frontend"]` con sesión activa en Demiurge). **No hay refresh token** (Demiurge no pide `offline_access`; el grant existe en el servidor pero el cliente no lo usa) ni device flow: al abrir Demiurge con sesión viva el silent renew emite un token nuevo de ~24 días → re-extraer. Detalle y sondas en `mcp-spheroid/README.md` (sección Renovación del JWT).
 - Endpoints (los 26, ver `mcp-spheroid/README.md`):
   - `POST api/directory/list {appId}` → archivos con IDs.
   - `POST api/file/content/get {appId, fileId}` → `{content}`.
