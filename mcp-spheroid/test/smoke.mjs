@@ -2,10 +2,13 @@
 // status / read_file / search_language (sin tocar la nube).
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { fileURLToPath } from "node:url";
 
 const transport = new StdioClientTransport({
   command: "node",
-  args: [new URL("../src/index.js", import.meta.url).pathname.replace(/^\/(\w):/, "$1:")],
+  // fileURLToPath (no pathname): con espacios en la ruta el pathname queda
+  // percent-encoded ("%20") y node no encuentra el archivo.
+  args: [fileURLToPath(new URL("../src/index.js", import.meta.url))],
   env: { ...process.env },
 });
 
