@@ -206,6 +206,23 @@ function texto(t, esError = false) {
   return { content: [{ type: "text", text: t }], isError: esError };
 }
 
+/**
+ * Lee la fecha de vencimiento (exp) del JWT decodificando su payload.
+ * Solo lectura local: el token nunca se imprime completo.
+ */
+function expiracionToken(token) {
+  try {
+    const parte = token.split(".")[1];
+    const json = JSON.parse(Buffer.from(parte, "base64url").toString("utf8"));
+    if (typeof json.exp !== "number") return null;
+    const fecha = new Date(json.exp * 1000);
+    const dias = Math.ceil((fecha.getTime() - Date.now()) / 86400000);
+    return { fecha, dias };
+  } catch {
+    return null;
+  }
+}
+
 const server = new McpServer({ name: "spheroid", version: "0.1.0" });
 
 server.registerTool(
@@ -226,12 +243,26 @@ server.registerTool(
     } catch {
       localOk = false;
     }
+    let tokenLinea = `  Token:     ${cfg.token ? "sí" : "no"}`;
+    if (cfg.token) {
+      const exp = expiracionToken(cfg.token);
+      if (exp) {
+        const iso = exp.fecha.toISOString().slice(0, 10);
+        if (exp.dias <= 0) {
+          tokenLinea += ` · VENCIDO el ${iso} — re-extraer de Demiurge (ver README)`;
+        } else if (exp.dias <= 7) {
+          tokenLinea += ` · vence el ${iso} (en ${exp.dias} día${exp.dias === 1 ? "" : "s"}) — pronto habrá que re-extraerlo`;
+        } else {
+          tokenLinea += ` · vence el ${iso} (en ${exp.dias} días)`;
+        }
+      }
+    }
     const lineas = [
       "=== Spheroid MCP ===",
       `Proyecto local (${cfg.localProject}): ${localOk ? "OK" : "NO ENCONTRADO"}`,
       `Nube: ${nubeListo ? "CONFIGURADA" : "INCOMPLETA"}`,
       `  API base:  ${cfg.apiBase ? "sí" : "no"}`,
-      `  Token:     ${cfg.token ? "sí" : "no"}`,
+      tokenLinea,
       `  App ID:    ${cfg.appId}`,
       `  IDs de archivo: ${Object.keys(fileIds).length} mapeado(s) · locales: ${Object.keys(idsLocal).length} en file-ids.json`,
       `  Endpoints: get · save · create · delete · upload · directory · details · startup · publish (defaults verificados)`,
@@ -600,7 +631,7 @@ server.registerTool(
   {
     title: "Llamada genérica a la API de Spheroid",
     description:
-      "Ejecuta una petición HTTP contra la API de plataforma de Spheroid (con el Origin de Demiurge). Para endpoints no cubiertos por las herramientas del servidor, p. ej. api/app/list, api/directory/list, api/app/details. Body en JSON como objeto.",
+      "Ejecuta una petición HTTP contra la API de plataforma de Spheroid (con el Origin de Demiurge). Para endpoints no cubiertos por las herramientas del servidor, p. ej. api/app/list, api/directory/list, api/app/details. Body en JSON como objeto. El endpoint debe ser RELATIVO (p. ej. 'api/app/list'): se rechazan URLs absolutas para no enviar el token fuera de la base.",
     inputSchema: {
       method: z.enum(["GET", "POST"]).describe("Método HTTP."),
       endpoint: z.string().describe("Ruta relativa, p. ej. 'api/app/list'."),
@@ -615,7 +646,16 @@ server.registerTool(
     if (faltan.length > 0) {
       return texto("Nube no configurada:\n" + faltan.map((f) => `  - ${f}`).join("\n"), true);
     }
-    const url = new URL(endpoint.replace(/^\/+/, ""), cfg.apiBase + "/");
+    // Ruta relativa obligatoria: una URL absoluta reemplazaría el host del
+    // `new URL` y el token Bearer saldría hacia otro sitio.
+    const relativa = endpoint.trim().replace(/^\/+/, "");
+    if (!relativa || /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(relativa)) {
+      return texto(
+        `Endpoint inválido: usa una ruta relativa como "api/app/list" (se rechazan URLs absolutas para no enviar el token fuera de ${cfg.apiBase}).`,
+        true,
+      );
+    }
+    const url = new URL(relativa, cfg.apiBase + "/");
     const init = { method, headers: cabeceras(method === "POST") };
     if (method === "GET" && body) {
       for (const [k, v] of Object.entries(body)) url.searchParams.set(k, String(v));

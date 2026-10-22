@@ -14,6 +14,9 @@ desde OpenCode. Registrado globalmente como servidor `spheroid`
 | `save_file` | Guarda contenido completo (`target: cloud` \| `local`). Si el archivo no existe aún en la nube, **lo crea** (`file/create`) y persiste el id en `file-ids.json` | cloud: sí |
 | `upload_file` | Sube un **binario** (assets) con `api/file/upload` (multipart `files` + `metadata`) — solo con aprobación | sí |
 | `delete_file` | Borra un archivo de la nube — **destructivo, solo con aprobación** | sí |
+| `search_language` | Busca en el **vocabulario oficial Spheroid Script** (295 términos de `registry.json`, recuperados del binario del runtime) | no |
+| `get_term` | Detalle de un término exacto del vocabulario (+ sugerencias si no existe) | no |
+| `api_call` | Llamada **genérica** a la API (con el Origin de Demiurge) para endpoints no cubiertos, p. ej. `api/app/list`. Endpoint **relativo obligatorio**: no se manda el token fuera de la base | sí |
 | `publish` | Publica (build) en **2 fases** (`publish/startup` → `publish/publish`) — **solo con aprobación explícita del usuario** | sí |
 | `list_builds` | Builds publicados vía `GET api/app/details` → `app.publications` | sí |
 
@@ -21,8 +24,9 @@ desde OpenCode. Registrado globalmente como servidor `spheroid`
 
 Configuración actual (7 oct 2026): **nube operativa** — base + token + 8 IDs en
 el `environment` de la entrada `spheroid` del opencode.json. `status` debe decir
-*Nube CONFIGURADA*; si el JWT vence (31 oct 2026), re-extraerlo de Demiurge
-(`sessionStorage["oidc.user:https://auth.spheroid.io:Demiurge.Frontend"]`).
+*Nube CONFIGURADA* y ahora **muestra solo el vencimiento del JWT** (decodifica
+`exp` sin imprimir el token): si vence o está por vencer (< 7 días), re-extraerlo
+de Demiurge (`sessionStorage["oidc.user:https://auth.spheroid.io:Demiurge.Frontend"]`).
 
 ```sh
 SPHEROID_API_BASE      # https://platform-api.spheroid.io
@@ -47,6 +51,12 @@ SPHEROID_LOCAL_PROJECT     # por defecto ../exposicion-ccd
 `file-ids.json` (junto a `src/`): ids de archivos **creados por estas
 herramientas** (p. ej. `client/Sun.spheroid`); se fusiona con
 `SPHEROID_FILE_IDS` (este archivo gana). No contiene secretos (solo UUIDs).
+
+`registry.json` (junto a `src/`): **295 términos** del vocabulario oficial de
+Spheroid Script, recuperados por ingeniería inversa del binario del runtime
+(clase `spheroid.scriptengine.d3` del APK PixelVoxel). Lo consumen
+`search_language` y `get_term`; si falta el archivo esas tools quedan vacías
+(con aviso en stderr al arrancar). Sin secretos.
 
 ## Estado de la API (recuperado 7 oct 2026)
 
@@ -83,7 +93,7 @@ herramientas** (p. ej. `client/Sun.spheroid`); se fusiona con
 
 ```sh
 npm install
-npm test        # prueba de humo: conecta, lista herramientas, llama a status/read/save
+npm test        # humo: verifica las 11 herramientas, status/read/search_language y el rechazo de save sin nube
 npm start       # arranca por stdio (lo hace OpenCode, no a mano)
 ```
 
