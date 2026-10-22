@@ -6,10 +6,12 @@ slash: true
 
 # ExposicionCCD — exposición XR de la Corporación
 
-## Estado: ACTIVA (retomada 7 oct 2026)
+## Estado: ACTIVA (retomada 7 oct 2026; vigente build 50)
 
 - Pausa anterior levantada por el usuario ("volvemos a escultura… en xr").
-- **Build 36** publicado el 7 oct 2026: ficha de la escultura en vivo.
+- Historial: build 36 (7 oct, ficha de la escultura en vivo) → **build 50**
+  vigente (verificado 20 oct 2026 con `list_builds`): la fase de sombra solar
+  ya está **subida y publicada**.
 - Contenido XR **solo institucional aprobado**; `publish` solo con visto bueno del usuario.
 
 ## Identificadores
@@ -28,12 +30,15 @@ slash: true
 | map_icon.png | `16d8c9f1-15ba-4e50-8ed8-5c382413324c` |
 | notification_icon.png | `8d7b2a68-3bca-471d-a94d-6e638348b5bc` |
 | unclavo_soc.glb | `1dfd3b25-6d47-4aeb-85dc-94ef76d35fc0` |
+| Sun.spheroid | `921c9f73-4beb-4fba-9df8-230fb5e4c78f` |
+| sombra_sol.glb | `a387460f-cd05-4c10-b946-7a9fa0b3a39d` |
 
+- Verificado 20 oct 2026 con `list_files`: la nube tiene exactamente estos **10 archivos**.
 - El árbol de la nube es **plano** (sin subcarpetas); el staging local sí usa `client/`, `server/`, `assets/`.
 
 ## API (recuperada y verificada el 7 oct 2026)
 
-- Base `https://platform-api.spheroid.io` — auth `Authorization: Bearer <JWT>` (OIDC `auth.spheroid.io`, client `Demiurge.Frontend`, scope `Platform.Api`; el JWT vigente **vence 31 oct 2026** — re-extraerlo de `sessionStorage["oidc.user:https://auth.spheroid.io:Demiurge.Frontend"]` con sesión activa en Demiurge).
+- Base `https://platform-api.spheroid.io` — auth `Authorization: Bearer <JWT>` (OIDC `auth.spheroid.io`, client `Demiurge.Frontend`, scope `Platform.Api`; el JWT vigente **vence 31 oct 2026** — la tool `status` del MCP muestra solo la fecha y los días restantes; re-extraerlo de `sessionStorage["oidc.user:https://auth.spheroid.io:Demiurge.Frontend"]` con sesión activa en Demiurge).
 - Endpoints (los 26, ver `mcp-spheroid/README.md`):
   - `POST api/directory/list {appId}` → archivos con IDs.
   - `POST api/file/content/get {appId, fileId}` → `{content}`.
@@ -54,27 +59,28 @@ slash: true
 
 - `space-ccd-iibague`: Space real de la Corporación (posición refinable con el panel).
 - `bogota` (4.7108, -74.0721) e `ibague` (4.4389, -75.2322): placeholders — pendientes: Space real + texto aprobado.
+- **Pose calibrada (in situ)**: `Stations.spheroid` arrastra por estación `savedLat/savedLng/savedPy/calRumbo` (lo que el panel GUARDAR fijó en el lugar); `GetStationsAction` la devuelve como pose principal (lat/lng y baseLat/baseLng quedan como referencia) y el cliente aplica `ajusteRumbo = station.calRumbo` con default defensivo para servidores viejos (no aborta el alta de la estación). La sombra se ancla al pie del objeto con `sombraDe(savedLat, savedLng)`.
 
 ## Staging local
 
-- `C:\Users\kutzm\Documents\GitHub\xr-su\exposicion-ccd\` — **sincronizado con la nube el 7 oct 2026** (incluye `assets/unclavo_soc.glb`; `estacion.glb` retirado).
+- `C:\Users\kutzm\Documents\GitHub\xr-su\exposicion-ccd\` — copia de trabajo del repo vivo (sincronizada con la nube el 7 oct; la nube siguió avanzando hasta el build 50).
 - Nube = fuente de verdad: leer → editar → `save` → `publish` con visto bueno.
+- ⚠ Existe una **copia snapshot** en `F:\Proyecto predeterminado\GitHub\xr-su` (estado del 7 oct, respaldada con git el 20 oct): para tocar el proyecto usa la copia de **C:**, que es a la que apunta el MCP y va más adelantada.
 
-## Fase sombra solar (prototipo Vía A — 7 oct 2026, LOCAL, sin subir ni publicar)
+## Fase sombra solar (YA EN NUBE Y PUBLICADA; verificado 20 oct 2026)
 
 - Estudio: Zhu et al. 2023 (ISPRS IJGI 12(8):324) + NOAA simplificado → detallado en el skill **Desarrollo XR con Spheroid Script** (límites de API, ejes, patrón solar).
-- Archivos del prototipo en staging (la nube **aún no** los tiene):
-  - `client/Sun.spheroid` (nuevo; ya listado en `app.json`): módulo solar + configuración (`sombraY=0.05`, `sombraLargo=1.1`, `sombraAncho=0.75`, `ajusteGiroSol=0.0`, `horaSolUtc=15.0`, `diaAnioSol=280.0`, `modoDemoSol=true`).
-  - `client/Client.spheroid`: `sombraModel`, carga en `loadAssets`, sombra por estación en `addStation`, `aplicarSol`/`refrescarSombras`, `Timer.schedule(10 s)` (avanza 1 h por tick en demo), **los 5 ACT loops del panel filtran `child.model == stationModel`** (si no, GUARDAR guardaría la y de la sombra), `println("RELOJ:" + Date())`.
-  - `assets/sombra_sol.glb` (nuevo, 6.460 B; generado por script con vertex-color alpha + BLEND).
-  - `app.json`: `client` = `["./Sun.spheroid", "./Client.spheroid"]`.
-- **Pendiente (visto bueno)**: subir a nube (create `Sun.spheroid` + save ×3 + `upload_file` del GLB) → **publish build 37** → **probar en dispositivo**: calibrar `ajusteGiroSol` (puede ser 0/180/espejo) y `sombraY` (¿suelo real en y=0?), revisar que `sombra_sol.glb` carga (fileType 3, igual que `unclavo_soc.glb`) y leer `RELOJ:` en consola.
-- Hora real: **imposible con la API actual** (ver límites en el skill de sintaxis); placeholders + modo demo. Fase 2: GLB tintados por franja + feature requests a Spheroid (API de hora y de luz ambiental).
+- **Subida y publicada**: `Sun.spheroid` (id `921c9f73…`) y `assets/sombra_sol.glb` (id `a387460f…`, 6.460 B, fileType 3) están en la nube; los builds siguieron avanzando hasta el **50** vigente. Último toque en repo: `e21a1bf` «sombra al pie del objeto + validación `require` en Sun».
+- Componentes: `client/Sun.spheroid` (módulo solar + config `sombraY/sombraLargo/sombraAncho/ajusteGiroSol/horaSolUtc/diaAnioSol/modoDemoSol`; listado en `app.json`), `client/Client.spheroid` (`sombraModel`, `aplicarSol`/`refrescarSombras`, `Timer.schedule(10 s)` avanza 1 h por tick en demo, **los ACT loops del panel filtran `child.model == stationModel`** para no guardar la y de la sombra), `assets/sombra_sol.glb` (elipse xz con vertex-color alpha + BLEND).
+- **Pendientes**: hora real — **imposible con la API actual** (ver límites en el skill de sintaxis): placeholders + modo demo; fase 2 = GLB tintados por franja + feature requests a Spheroid (API de hora y de luz ambiental); y la calibración fina en dispositivo que convenga (`ajusteGiroSol`, `sombraY`).
 
-## Herramientas MCP
+## Herramientas MCP (`mcp-spheroid`, 11 tools)
 
-- Servidor `spheroid` **configurado en nube** (opencode.json global: API base, token, 8 IDs, endpoints): `status` → *Nube CONFIGURADA*; `read_file` y `save_file` verificados en vivo.
-- `publish` solo con aprobación explícita (ahora en **2 fases** dentro de la herramienta). `list_builds` resuelto (vía `GET app/details` → `app.publications`; vigente = build 36). Nuevas: `list_files` en nube, `upload_file` (multipart `files`+`metadata`), `delete_file`, y `save_file` crea archivos nuevos guardando el id en `mcp-spheroid/file-ids.json`.
+- Servidor `spheroid` vivo en `C:\Users\kutzm\Documents\GitHub\xr-su\mcp-spheroid` (config en el opencode.json global): `status` → *Nube CONFIGURADA* **y vencimiento del JWT** (solo la fecha y los días, nunca el token).
+- Nube: `list_files` (nube/local), `read_file` (nube si hay id; si no, local avisando), `save_file` (crea archivos nuevos y persiste el id en `mcp-spheroid/file-ids.json`), `upload_file` (binarios, multipart `files`+`metadata`), `delete_file` (destructivo) y `publish` (**2 fases**, solo con aprobación explícita), `list_builds` (vía `app/details` → `publications`; vigente = **build 50**).
+- Vocabulario del lenguaje: `search_language` y `get_term` sobre `registry.json` (295 términos del runtime oficial).
+- `api_call` para endpoints sueltos (p. ej. `api/app/list`) — **endpoint relativo obligatorio**: las URLs absolutas se rechazan para que el token no salga de la base.
+- Detalle y variables en `mcp-spheroid/README.md`. Tras cambiar el código hay que reiniciar OpenCode (el proceso vivo no se recarga solo); `npm test` valida sin tocar la nube.
 
 ## Otros apps de la cuenta
 

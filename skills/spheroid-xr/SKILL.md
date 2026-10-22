@@ -94,6 +94,7 @@ Referencias oficiales (consultar ante dudas, no memorizar):
 
 1. La **nube es la fuente de verdad**; el staging local puede estar desfasado → siempre leer el contenido real antes de editar.
 2. Edición vía API (**verificada 7 oct 2026**): base `https://platform-api.spheroid.io` con Bearer JWT — **`POST api/file/content/get {appId, fileId}` → modificar (splice) → `POST api/file/content/save {appId, fileId, content}`**. Archivos nuevos: `file/create {appId, fileName}` (el campo `content` se ignora → crear y luego `save`; el árbol de la nube es **plano**, solo nombre) . **Binarios (assets)**: `POST api/file/upload` multipart → campo `files` = archivo + `metadata` = JSON `{appId, directoryId}` (forma real extraída del bundle de Demiurge). `file/delete {appId, fileId}` — ojo: HTTP 200 con `success:false` si falta `appId`.
+   - Atajo: el MCP `spheroid` (`read_file`/`save_file`/`upload_file`/`list_builds`/`api_call`) hace todo esto sin curl y con las mismas reglas; `status` avisa del vencimiento del JWT (vigente: 31 oct 2026).
 3. Publicar en **2 fases**: `POST api/publish/startup {appId}` y luego `POST api/publish/publish {appId, publishClient, publishServer, isDebug, layerIds, newLayerTitle}`. El número de build sale de `GET api/app/details?appId=` → `publications[0].appVersion.build`. Publicar requiere visto bueno del usuario.
 4. Tras publicar, probar el comportamiento en el dispositivo/app antes de dar por bueno el cambio.
 
@@ -108,6 +109,7 @@ Referencias oficiales (consultar ante dudas, no memorizar):
 
 ## Prototipo de luz ambiental (fase 1: sombra solar)
 
+- **Estado**: ya **subida y publicada** (build 50; IDs, componentes y pendientes en el skill **App XR ExposicionCCD**).
 - Estudio base: **Zhu, Liu, Sun, Yuan, Wu (2023)**, *A Lighting Consistency Technique for Outdoor AR Based on Multi-Source Geo-Information*, ISPRS IJGI 12(8):324 (CC BY): sol por lat/lng/hora (SPA/NOAA) → coherencia de luz en AR outdoor sin marcadores. Complementos: ARCore Environmental HDR, WebXR Lighting Estimation, SunCalc.
 - `Sun.spheroid` (cliente): `solAzimutElevacion(lat, lng, horaUtc, diaAnio)` → `dynamicOf(az, elev)` con el NOAA simplificado (ano fraccional → ecuación del tiempo + declinación → vector sol E/N/U → atan2 propio); `giroSombra(az)`; `largoSombra(elev)` = 1/tan recortada a [1, 6], y < 3° → 0 (noche).
 - Sombra = **GLB propio** (`assets/sombra_sol.glb`, ~6,4 KB): elipse en el plano xz con **vertex colors alfa** (alpha = 1−r², anillos 0.5/0.85/1, 48 segmentos) + material negro `alphaMode: "BLEND"`, `doubleSided` — generada con un script Node (buffer JSON+BIN, accessors VEC3/VEC4/SCALAR). Ocultar de noche con `scale = Vector3(0)`.
@@ -119,4 +121,4 @@ Referencias oficiales (consultar ante dudas, no memorizar):
 - Contenido XR **solo institucional y aprobado** (textos, coordenadas, modelos pasan por aprobación).
 - Nada de `publish` (ni push de repo) sin aprobación explícita.
 - PowerShell 5.1: **no existe `&&`** (usar `;`); si hace falta npm → `cmd /c npm ...`.
-- El proyecto **ExposicionCCD está en pausa**: para todo lo específico de esa app (IDs, estaciones, pendientes) usar el skill **App XR ExposicionCCD**.
+- El proyecto **ExposicionCCD está ACTIVO** (vigente build 50): para todo lo específico de esa app (IDs, estaciones, calibraciones, pendientes) usar el skill **App XR ExposicionCCD**.
