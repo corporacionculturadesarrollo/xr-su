@@ -21,4 +21,4 @@
 
 - [ ] **Fine-tune con corpus del blog** (tema Soup, sesión de la mañana): extraer los 14 artículos MDX (~0,1 MB) a JSONL de chat; entrenar en la nube (Colab T4 gratis o GPU de pago) — la GT 710 de 1 GB descarta entrenamiento local. Excluir datos sensibles (config-smtp, autores-emails, roles, runbook).
 - [ ] **Prueba contenida de DSH** (si algún día interesa): `npx @deepseek-ai/dsh web` en carpeta desechable con API key de DeepSeek de prueba; alternativa sin DSH: añadir DeepSeek como provider más en OpenCode.
-- [ ] **JWT de Spheroid vence 2026-10-31** — abrir Demiurge y re-extraerlo (recordatorio global, ver `2026-10-22-mcp-blender.md`).
+- [x] **JWT de Spheroid renovado** (22 oct, sesión con MFA en Demiurge): token nuevo `nbf` 22 oct → **exp 2026-11-15** (ventana de 24 días); actualizado en `opencode.json` (env del MCP `spheroid`) y validado contra la API real (`api/app/details` → HTTP 200). El MCP de la sesión viva conserva el token viejo en memoria (válido hasta el 31 oct); el nuevo se carga en el próximo arranque de OpenCode. Flujo confirmado: login fresco en Demiurge = token nuevo (el silent renew solo actúa a <10 min del vencimiento).
