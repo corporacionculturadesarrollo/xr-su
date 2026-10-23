@@ -1,0 +1,13 @@
+{
+  "name": "marcador-ar-ref",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Servidor de referencia del protocolo Marcador AR — valida roles, instancias y ciclo del partido antes del port a Kotlin",
+  "scripts": {
+    "test": "node test.js",
+    "server": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

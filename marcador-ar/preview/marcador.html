@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Marcador AR — previsualización del tablero</title>
+<style>
+  /* Fuente condensada de la referencia (misma métrica: altura de
+     mayúsculas = 0,80 em · "FOULS" 78×34, "POS" 54×37, "HOME" 114×51) */
+  @font-face{font-family:"MarcadorCond";font-style:normal;font-weight:700;
+    font-display:block;src:url("../fonts/BigShouldersDisplay-Bold.ttf") format("truetype")}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:#0a0a0b;color:#fff;
+    font-family:"Arial Narrow","Helvetica Neue",Arial,sans-serif}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:.6rem;padding:.8rem;min-height:100vh;justify-content:center}
+  /* Tablero con la proporción exacta de la referencia (1600 × 716) y
+     container-type:size → todas las medidas se expresan en cqw/cqh
+     (1 cqw = 1 % del ancho · 1 cqh = 1 % del alto del tablero).      */
+  .board{position:relative;width:min(96vw,1200px);aspect-ratio:1600/716;container-type:size;
+    background:#000;border-radius:10px;overflow:hidden;user-select:none;touch-action:manipulation;
+    font-family:"MarcadorCond","Arial Narrow","Helvetica Neue",Arial,sans-serif}
+
+  /* ---- iconos superiores (grises, sin caja) · 54×55 / 56×55 / 50×47 ---- */
+  .icn{position:absolute;top:9.36%;transform:translate(-50%,-50%);z-index:6;padding:0;border:none;
+    background:none;cursor:pointer;color:#8a8a8a;aspect-ratio:1}
+  .icn svg{display:block;width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.7;
+    stroke-linecap:round;stroke-linejoin:round}
+  .icn:hover{color:#b4b4b4}
+  .icn.gear{left:19.28%;width:3.4cqw}   /* centro 308,5 · 67 */
+  .icn.help{left:79.66%;width:3.5cqw}   /* centro 1274,5 · 67 */
+  .icn.spk {left:84.59%;width:3.15cqw}  /* centro 1353,5 · 67 */
+
+  /* ---- reloj del partido (MM:SS) · caja x568-1094 y20-267 ---- */
+  .clockbox{position:absolute;left:35.5%;top:2.79%;width:32.94%;height:34.64%;z-index:4;
+    border:.66cqw solid #fff;border-radius:1.44cqw;cursor:pointer;
+    display:flex;align-items:center;justify-content:center}
+  .clockbox:active{background:rgba(255,255,255,.06)}
+
+  /* ---- faltas · leyenda x364-440 y120-150 · caja x336-466 y157-303 ---- */
+  .foul{position:absolute;top:15.98%;transform:translateX(-50%);z-index:4;
+    display:flex;flex-direction:column;align-items:center}
+  .foul.left{left:25.06%} .foul.right{left:78.81%}
+  .foul .cap{color:#ababab;font-weight:700;font-size:2.625cqw;line-height:1}
+  .foul .fbox{border:.47cqw solid #fff;border-radius:.81cqw;padding:.52cqw 1.085cqw;cursor:pointer;
+    display:flex;align-items:center;justify-content:center}
+  .foul .fbox:active{background:rgba(255,255,255,.06)}
+
+  /* ---- marca de agua · x757-906 y281-299 ---- */
+  .wm{position:absolute;left:51.97%;top:40.5%;transform:translate(-50%,-50%);z-index:3;
+    color:#95959a;font-size:1.5cqw;letter-spacing:.12em;font-weight:700;white-space:nowrap}
+
+  /* ---- reloj de posesión · caja x707-955 y303-446 ---- */
+  .shotbox{position:absolute;left:44.19%;top:42.32%;width:15.56%;height:20.11%;z-index:4;
+    border:.62cqw solid #7a2d2b;border-radius:.81cqw;background:#000;cursor:pointer;
+    display:flex;align-items:center;justify-content:center}
+  .shotbox:active{background:#180404}
+
+  /* ---- posesión: ◀ POS ▶ · centro x831,5 y488,5 ---- */
+  .pos{position:absolute;left:51.97%;top:68.23%;transform:translate(-50%,-50%);z-index:4;
+    display:flex;align-items:center;gap:1.5cqw}
+  .pos .ar{background:#a5a5a5;border:none;padding:0;cursor:pointer;
+    width:2.4cqw;height:2.875cqw}
+  #arL{clip-path:polygon(100% 0,100% 100%,0 50%)}
+  #arR{clip-path:polygon(0 0,0 100%,100% 50%)}
+  .pos .ar.on{background:#d2d2d2}
+  .pos .cap{color:#aaaaaa;font-weight:700;letter-spacing:.035em;font-size:2.875cqw;line-height:1}
+
+  /* ---- período · caja x773-889 y541-670 (sin leyenda, como la referencia) ---- */
+  .periodwrap{position:absolute;left:51.97%;top:75.56%;transform:translateX(-50%);z-index:4;
+    display:flex;flex-direction:column;align-items:center}
+  .periodwrap .pbox{border:.41cqw solid #fff;border-radius:.94cqw;padding:.36cqw .92cqw;
+    cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .periodwrap .pbox:active{background:rgba(255,255,255,.06)}
+
+  /* ---- equipos · caja x290-668 / x995-1373 y334-541 ---- */
+  .team{position:absolute;top:46.65%;z-index:4;display:flex;flex-direction:column;align-items:center}
+  .team.home{left:18.13%;width:23.69%} .team.guest{left:62.19%;width:23.69%}
+  .sbox{width:100%;height:29.05cqh;border:.66cqw solid #f2bc1b;border-radius:1.63cqw;
+    display:flex;align-items:center;justify-content:center;cursor:pointer}
+  .sbox:active{background:rgba(240,180,0,.07)}
+  .tlab{margin-top:1.95cqh;background:#1c1c1c;border-radius:.88cqw;padding:0 .5cqw;color:#fff;
+    font-weight:700;letter-spacing:.027em;font-size:4cqw;height:7.68cqh;line-height:1;
+    display:flex;align-items:center;justify-content:center;white-space:nowrap}
+  .dots{display:flex;gap:.875cqw;margin-top:2.79cqh}
+  .dots i{width:2.44cqw;height:2.44cqw;border-radius:50%;background:#ffe93a;
+    box-shadow:0 0 .45cqw rgba(255,235,60,.5)}
+  .dots i.off{background:#242424;box-shadow:none}
+
+  /* ---- barra de conexión / rol (fuera del tablero) ---- */
+  .connbar{display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;justify-content:center;font-size:.78rem;color:#c9cdd3}
+  .connbar .dot{width:9px;height:9px;border-radius:50%;background:#e5484d;flex:none}
+  .connbar .dot.on{background:#46a758}
+  .connbar .rol{font-weight:900;letter-spacing:.03em;text-transform:uppercase;font-size:.7rem}
+  .connbar .rol.admin{color:#f0b400}
+  .connbar button{background:#232427;color:#eee;border:1px solid #3a3b3f;border-radius:6px;
+    padding:.32rem .8rem;cursor:pointer;font-size:.75rem}
+  .connbar button:hover:not(:disabled){border-color:#f0b400}
+  .connbar button:disabled{opacity:.32;cursor:default}
+  .connbar .meta{color:#6d727a;font-size:.7rem}
+  .toast{min-height:1.2em;color:#ffb4a8;font-size:.78rem;text-align:center;margin:0}
+
+  /* ---- diálogo SETTINGS ---- */
+  .overlay{position:absolute;inset:0;background:rgba(0,0,0,.82);z-index:20;display:none;
+    align-items:center;justify-content:center}
+  .overlay.open{display:flex}
+  .dlg{background:#050505;border:1px solid #1e1e1e;border-radius:12px;padding:3.2% 4%;
+    width:88%;max-width:640px;box-shadow:0 0 40px rgba(0,0,0,.9)}
+  .dlg h2{text-align:center;margin:0 0 3.5%;font-weight:800;letter-spacing:.14em;color:#8a8a8a;
+    font-size:clamp(13px,2.5cqw,24px)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:.6em 1.4em;align-items:center}
+  .fld{display:flex;align-items:center;gap:.6em;justify-content:flex-end}
+  .fld .k{color:#f0f0f0;font-weight:800;letter-spacing:.03em;font-size:clamp(9px,1.69cqw,16px);white-space:nowrap}
+  .fld input[type=number],.fld input[type=text]{width:5.5em;font-weight:800;text-align:center;border:none;
+    border-radius:8px;background:#fff;color:#000;padding:.4em;font-size:clamp(10px,1.88cqw,18px)}
+  .fld.wide input[type=text]{width:11em}
+  .chk{width:1.5em;height:1.5em;accent-color:#12b45a;cursor:pointer}
+  .radios{display:flex;gap:.5em;align-items:center}
+  .radios label{width:2.4em;height:2.4em;border-radius:50%;background:#2a2a2a;color:#ccc;display:flex;
+    align-items:center;justify-content:center;font-weight:800;cursor:pointer;font-size:clamp(9px,1.63cqw,15px)}
+  .radios input{display:none}
+  .radios input:checked+label{background:#fff;color:#000}
+  .fontrow{grid-column:1 / -1;display:flex;align-items:center;gap:.7em;justify-content:flex-end;margin-top:.2em}
+  .fontrow .k{color:#f0f0f0;font-weight:800;font-size:clamp(9px,1.69cqw,16px)}
+  .fontrow .opts{display:flex;gap:.55em}
+  .fontrow .f{width:3.4em;height:2.4em;border-radius:8px;background:#242424;border:2px solid #333;
+    color:#7a7a7a;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;
+    font-size:clamp(10px,1.88cqw,17px);letter-spacing:.02em}
+  .fontrow .f.sel{border-color:#12b45a;color:#12d45e}
+  .dlgbtns{display:flex;gap:.6em;margin-top:4%}
+  .dlgbtns button{flex:1;border:none;border-radius:9px;padding:.7em;font-weight:900;cursor:pointer;
+    font-size:clamp(9px,1.56cqw,15px);letter-spacing:.03em}
+  #btnResetAll{background:#ef4444;color:#111}
+  #btnCancel{background:#d4d4d4;color:#111}
+  #btnSave{background:#38d47a;color:#062}
+  .dlgbtns button:hover{filter:brightness(1.08)}
+  .ver{position:absolute;left:2.5%;bottom:2.5%;color:#3a3a3a;font-size:clamp(7px,1.25cqw,12px)}
+
+  .hint{color:#8a9099;font-size:.78rem;max-width:74ch;text-align:center;line-height:1.5;margin:.1rem 0 0}
+  .hint b{color:#cfd3d8}
+
+  /* ---- CONTROL AR (solo admin): posiciona el tablero 3D para los espectadores ---- */
+  .arctl{display:none;flex-wrap:wrap;align-items:center;justify-content:center;gap:.5em .9em;
+    background:#0d0f12;border:1px solid #1e232b;border-radius:10px;padding:.55em .9em;max-width:74ch}
+  .arctl.on{display:flex}
+  .arctl .artitle{font-weight:900;letter-spacing:.12em;color:#f0b400;font-size:.72rem;width:100%;text-align:center}
+  .arctl .row{display:flex;align-items:center;gap:.35em}
+  .arctl .row .k{color:#cfd3d8;font-weight:800;font-size:.7rem;min-width:5.5em;text-align:right}
+  .arctl .row button{width:1.9em;height:1.9em;border:none;border-radius:6px;background:#232a33;color:#fff;
+    font-weight:900;cursor:pointer;font-size:.85rem;line-height:1}
+  .arctl .row button:hover{background:#f0b400;color:#000}
+  .arctl .row input[type=number]{width:4.2em;text-align:center;font-weight:800;border:none;border-radius:6px;
+    background:#fff;color:#000;padding:.25em;font-size:.78rem;-moz-appearance:textfield}
+  .arctl .row input::-webkit-outer-spin-button,.arctl .row input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  .arctl .geo{width:100%;text-align:center;color:#8a9099;font-size:.68rem}
+  .arctl .geo b{color:#12d45e}
+  .arctl .geobtns{display:flex;gap:.5em;justify-content:center;width:100%}
+  .arctl .geobtns button{border:none;border-radius:7px;padding:.4em 1em;font-weight:900;cursor:pointer;font-size:.72rem}
+  #btnFijar{background:#12b45a;color:#032}
+  #btnLiberarGeo{background:#3a4048;color:#ddd}
+  .arctl .geobtns button:disabled{opacity:.35;cursor:default}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="board" id="board">
+    <button class="icn gear" id="btnGear" title="Ajustes"><svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="7.4"/><circle cx="12" cy="12" r="3.1"/>
+      <path d="M12 1.8v3.2M12 19v3.2M22.2 12H19M5 12H1.8M16.95 16.95l2.27 2.27M7.05 16.95l-2.27 2.27M16.95 7.05l2.27-2.27M7.05 7.05L4.78 4.78"/>
+    </svg></button>
+    <button class="icn help" id="btnHelp" title="Ayuda"><svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="9.3"/>
+      <path d="M9.3 9.3a2.75 2.75 0 1 1 3.6 2.6c-.75.28-1.1.9-1.1 1.65v.45"/>
+      <circle cx="11.8" cy="17.1" r=".95" fill="currentColor" stroke="none"/>
+    </svg></button>
+    <button class="icn spk" id="btnSpk" title="Buzzer"><svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3.5 9.3h3.6L12 5.4v13.2L7.1 14.7H3.5z"/>
+      <path d="M15.4 9.1a4.3 4.3 0 0 1 0 5.8"/>
+      <path d="M18.1 6.4a8.1 8.1 0 0 1 0 11.2"/>
+    </svg></button>
+
+    <!-- reloj del partido: toque = arranca / pausa -->
+    <div class="clockbox" data-act="clock" id="clockBox">
+      <div id="clockDigits" style="display:flex"></div>
+    </div>
+
+    <!-- faltas: toque sobre la caja = +1 -->
+    <div class="foul left">
+      <span class="cap">FOULS</span>
+      <div class="fbox" data-act="foul+home"><div id="foulsHome"></div></div>
+    </div>
+    <div class="foul right">
+      <span class="cap">FOULS</span>
+      <div class="fbox" data-act="foul+visitor"><div id="foulsVisitor"></div></div>
+    </div>
+
+    <div class="wm">MARCADOR&middot;AR</div>
+
+    <!-- posesión: toque = reset 24 (largo = 14) -->
+    <div class="shotbox" data-act="shot"><div id="shotDigits" style="display:flex"></div></div>
+
+    <!-- posesión: ◀ = local, ▶ = visitante -->
+    <div class="pos">
+      <button class="ar" id="arL" data-act="pos-home" aria-label="Posesión: local"></button>
+      <span class="cap">POS</span>
+      <button class="ar" id="arR" data-act="pos-visitor" aria-label="Posesión: visitante"></button>
+    </div>
+
+    <!-- período: toque = siguiente (solo con reloj detenido) -->
+    <div class="periodwrap">
+      <div class="pbox" data-act="period+"><div id="periodDigits"></div></div>
+    </div>
+
+    <!-- puntos: toque = +1 (largo = corregir &minus;1) -->
+    <div class="team home">
+      <div class="sbox" data-act="score+home"><div id="scoreHome" style="display:flex"></div></div>
+      <span class="tlab" id="homeName">HOME</span>
+      <div class="dots" id="dotsHome"><i></i><i></i><i></i></div>
+    </div>
+    <div class="team guest">
+      <div class="sbox" data-act="score+visitor"><div id="scoreVisitor" style="display:flex"></div></div>
+      <span class="tlab" id="visitorName">GUEST</span>
+      <div class="dots" id="dotsVisitor"><i></i><i></i><i></i></div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="overlay" id="overlay">
+      <div class="dlg">
+        <h2>SETTINGS</h2>
+        <div class="grid">
+          <div class="fld"><span class="k">MINUTES:</span><input type="number" id="inMin" min="1" max="60" value="10"></div>
+          <div class="fld wide"><span class="k">LOCAL TEAM:</span><input type="text" id="inHome" value="HOME"></div>
+
+          <div class="fld"><span class="k">PERIODS:</span><input type="number" id="inPeriods" min="1" max="12" value="4"></div>
+          <div class="fld wide"><span class="k">VISITOR TEAM:</span><input type="text" id="inVisitor" value="GUEST"></div>
+
+          <div class="fld"><span class="k">FOULS LIMIT:</span><input type="number" id="inFouls" min="1" max="99" value="5"></div>
+          <div class="fld"><span class="k">24/14 SEC:</span><input type="checkbox" class="chk" id="inRule" checked></div>
+
+          <div class="fld"><span class="k">AUTO-STOP TIME:</span><input type="checkbox" class="chk" id="inAutoStop" checked></div>
+          <div class="fld"><span class="k">MAX TIMEOUTS:</span>
+            <input type="checkbox" class="chk" id="inToChk" checked>
+            <span class="radios">
+              <input type="radio" name="to" id="to3" value="3" checked><label for="to3">3</label>
+              <input type="radio" name="to" id="to5" value="5"><label for="to5">5</label>
+              <input type="radio" name="to" id="to7" value="7"><label for="to7">7</label>
+            </span>
+          </div>
+
+          <div class="fontrow">
+            <span class="k">NUMERIC FONT:</span>
+            <span class="opts" id="fontOpts">
+              <button class="f" data-f="0">123</button>
+              <button class="f" data-f="1">123</button>
+              <button class="f" data-f="2">123</button>
+              <button class="f" data-f="3">123</button>
+            </span>
+          </div>
+        </div>
+        <div class="dlgbtns">
+          <button id="btnResetAll">&#8635; RESET ALL</button>
+          <button id="btnCancel">&#10005; CANCEL</button>
+          <button id="btnSave">&#10003; SAVE</button>
+        </div>
+        <span class="ver">preview v1</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="connbar">
+    <span class="dot" id="dotConn"></span>
+    <span id="connTxt">conectando…</span>
+    <span class="rol" id="rolTxt">espectador</span>
+    <button id="btnClaim">Reclamar rol</button>
+    <button id="btnResign">Entregar rol</button>
+    <span class="meta" id="metaTxt"></span>
+  </div>
+  <div class="toast" id="toast"></div>
+
+  <!-- CONTROL AR: el admin posiciona el tablero 3D para todos los espectadores.
+       Cada ajuste viaja por WS (cmd place) y la vista AR de cada espectador lo aplica. -->
+  <div class="arctl" id="arctl">
+    <span class="artitle">CONTROL DEL TABLERO AR</span>
+    <div class="row"><span class="k">Tamaño (m)</span>
+      <button data-ar="ancho" data-d="-1">&minus;</button><input type="number" id="arAncho" step="0.5" min="1"><button data-ar="ancho" data-d="1">+</button></div>
+    <div class="row"><span class="k">Alto (m)</span>
+      <button data-ar="alto" data-d="-0.5">&minus;</button><input type="number" id="arAlto" step="0.5" min="0.5"><button data-ar="alto" data-d="0.5">+</button></div>
+    <div class="row"><span class="k">Altura (m)</span>
+      <button data-ar="y" data-d="-0.25">&minus;</button><input type="number" id="arY" step="0.25" min="0"><button data-ar="y" data-d="0.25">+</button></div>
+    <div class="row"><span class="k">Izq/Der (m)</span>
+      <button data-ar="x" data-d="-0.25">&minus;</button><input type="number" id="arX" step="0.25"><button data-ar="x" data-d="0.25">+</button></div>
+    <div class="row"><span class="k">Atrás/Adel (m)</span>
+      <button data-ar="z" data-d="-0.25">&minus;</button><input type="number" id="arZ" step="0.25"><button data-ar="z" data-d="0.25">+</button></div>
+    <div class="row"><span class="k">Giro (°)</span>
+      <button data-ar="rot" data-d="-5">&minus;</button><input type="number" id="arRot" step="5" min="0" max="359"><button data-ar="rot" data-d="5">+</button></div>
+    <div class="row"><span class="k">Inclin (°)</span>
+      <button data-ar="inc" data-d="-5">&minus;</button><input type="number" id="arInc" step="5" min="-80" max="80"><button data-ar="inc" data-d="5">+</button></div>
+    <div class="geo" id="arGeoTxt">posición temporal — no sobrevive al reinicio</div>
+    <div class="geobtns">
+      <button id="btnFijar" title="Guarda la posición con coordenadas geográficas (GPS/ARCore) para que permanezca tras reiniciar">&#128205; Fijar en el mapa</button>
+      <button id="btnLiberarGeo" disabled title="Vuelve a permitir colocación temporal">&#128269; Liberar</button>
+    </div>
+  </div>
+
+  <p class="hint"><b>Los campos son los botones:</b> toca el <b>reloj</b> para arrancar/pausar el cuarto · toca cada
+  <b>FOULS</b> o cada <b>caja de puntos</b> para sumar 1 · <b>POS ◀ ▶</b> fija la posesión (y ella sola se invierte al
+  convertir canasta, reiniciando el intervalo a 24/14) · toca el <b>reloj de posesión</b> para reiniciarlo (mantener = 14)
+  · toca la <b>caja de período</b> para avanzar de cuarto con el reloj detenido. Con <code>?vista=espectador</code> ves el mismo
+  tablero limpio —suspendido y fijo en el espacio— tal como en AR.</p>
+</div>
+
+<script>
+/* ============================================================
+   Fuente de matriz de puntos densa
+   Rejilla 11 × 15 por glifo · trazos de 3 puntos · puntos
+   redondos (paso ≈ 8,45 px en el tablero de 1600 × 716 de la
+   referencia) · esquinas exteriores redondeadas.
+   Los bitmap de 0, 1, 2, 4, 6 y 9 están extraídos píxel a píxel
+   de la referencia; 3, 5, 7 y 8 siguen la misma topología de
+   7 segmentos con las mismas reglas de redondeo.
+   ============================================================ */
+const COLS = 11, ROWS = 15, PUNCT_COLS = 3;
+const _r = (n, s) => Array(n).fill(s);
+
+const GLYPHS = {
+  /* a:filas 0-2 · verticales superiores:3-5 · g:6-8 · verticales
+     inferiores:9-11 · d:12-14 ; izquierda:cols 0-2 · centro:3-7 ·
+     derecha:8-10 */
+  "0": [".#########.", "###########", "###########",
+        ..._r(9, "###.....###"),
+        "###########", "###########", ".#########."],
+
+  "1": [..._r(3, "#######...."), ..._r(9, "....###...."), ..._r(3, "###########")],
+
+  "2": [".#########.", "###########", "###########", "###.....###",
+        "........###", "........###", ".##########", "###########",
+        "##########.", "###........", "###........", "###........",
+        "###########", "###########", "###########"],
+
+  "3": [".#########.", "###########", "###########", "###.....###",
+        "........###", "........###", ".##########", "###########",
+        ".##########", "........###", "........###", "###.....###",
+        "###########", "###########", ".#########."],
+
+  "4": [..._r(6, "###.....###"), ..._r(3, "###########"), ..._r(6, "........###")],
+
+  "5": [".#########.", "###########", "###########", "###.....###",
+        "###........", "###........", "##########.", "###########",
+        ".##########", "........###", "........###", "###.....###",
+        "###########", "###########", ".#########."],
+
+  "6": [".#########.", "###########", "###########", "###.....###",
+        "###........", "###........", "##########.", "###########",
+        "###########", "###.....###", "###.....###", "###.....###",
+        "###########", "###########", ".#########."],
+
+  "7": [".#########.", "###########", "###########", "###.....###",
+        ..._r(11, "........###")],
+
+  "8": [".#########.", "###########", "###########",
+        ..._r(3, "###.....###"), ..._r(3, "###########"),
+        ..._r(3, "###.....###"),
+        "###########", "###########", ".#########."],
+
+  "9": [".#########.", "###########", "###########",
+        ..._r(3, "###.....###"),
+        "###########", "###########", ".##########",
+        "........###", "........###", "###.....###",
+        "###########", "###########", ".#########."],
+
+  "-": [..._r(6, "..........."), ..._r(3, "###########"), ..._r(6, "...........")],
+  " ": _r(15, "...........")
+};
+
+/* celdas encendidas de un glifo (coordenadas [x,y]) */
+function glyphCells(ch){
+  const rows = GLYPHS[ch], P = [];
+  if(!rows) return P;
+  for(let y=0;y<ROWS;y++){
+    const L = rows[y];
+    for(let x=0;x<COLS;x++) if(L.charCodeAt(x) === 35) P.push([x,y]);
+  }
+  return P;
+}
+/* ":" = dos bloques de 3 × 3 en las filas 3-5 y 9-11
+   "." = un bloque de 3 × 3 en las filas 12-14 (base)          */
+function punctCells(ch){
+  const P = [];
+  const bands = ch === ":" ? [3,4,5, 9,10,11] : [12,13,14];
+  for(const y of bands) for(let x=0;x<PUNCT_COLS;x++) P.push([x,y]);
+  return P;
+}
+const isPunct = ch => ch === ":" || ch === ".";
+
+/* Tipos de fuente del picker (4 variantes reales) */
+const FONTS=[
+  {square:false,gap:0.40},  // redondo denso (por defecto, como la referencia)
+  {square:false,gap:0.54},
+  {square:true ,gap:0.40},
+  {square:true ,gap:0.54}
+];
+let fontVar = 0;
+
+/* dotPx = paso de la rejilla / (1 + separación) ; el paso se
+   fija como fracción del ancho del tablero para que las
+   proporciones coincidan con la referencia.                     */
+function drawReadout(el, text, color, dotPx, o){
+  o = o || {};
+  const fv = FONTS[fontVar];
+  const gapRatio = o.gap !== undefined ? o.gap : fv.gap;
+  const gap = Math.max(0.6, dotPx * gapRatio);   // separación entre puntos
+  const step = dotPx + gap;                      // paso de la rejilla
+  const charGap = step * 2.13;                   // separación entre glifos
+  const charW = COLS*step, charH = ROWS*step, slotW = PUNCT_COLS*step;
+
+  const items = []; let W = 0;
+  for(const ch of text){
+    const p = isPunct(ch);
+    const w = p ? slotW : charW;
+    items.push({ch, x:W, w, cols:p ? PUNCT_COLS : COLS});
+    W += w + charGap;
+  }
+  W = Math.max(0, W - charGap);
+
+  const pad = Math.max(gap, dotPx*0.8);
+  const TW = W + pad*2, H = charH + pad*2;
+  const dpr = window.devicePixelRatio||1;
+  let cv = el.querySelector("canvas");
+  if(!cv){ cv=document.createElement("canvas"); el.appendChild(cv); }
+  cv.width=Math.round(TW*dpr); cv.height=Math.round(H*dpr);
+  cv.style.width=TW+"px"; cv.style.height=H+"px";
+  const g=cv.getContext("2d");
+  g.setTransform(dpr,0,0,dpr,0,0);
+  g.clearRect(0,0,TW,H);
+  const sq = o.square!==undefined?o.square:fv.square;
+  const dot=(cx,cy,fill,size)=>{
+    g.fillStyle=fill;
+    const d=size||dotPx;
+    if(sq) g.fillRect(cx-d/2, cy-d/2, d, d);
+    else { g.beginPath(); g.arc(cx,cy,d/2,0,6.2832); g.fill(); }
+  };
+  const cellXY = (gx,gy,x,y) => [gx + x*step + dotPx/2, gy + y*step + dotPx/2];
+
+  for(const it of items){
+    const gx = pad + it.x, gy = pad;
+    const punct = isPunct(it.ch);
+    const c = (punct && it.ch === ":" && o.colonColor) ? o.colonColor : color;
+    // fantasma del panel LED (celdas apagadas tenues)
+    if(o.ghost){
+      for(let yy=0;yy<ROWS;yy++) for(let xx=0;xx<it.cols;xx++){
+        const [px,py] = cellXY(gx,gy,xx,yy);
+        dot(px, py, o.ghost, dotPx*0.72);
+      }
+    }
+    // celda encendida con leve brillo
+    g.save();
+    g.shadowColor=c; g.shadowBlur=dotPx*0.5;
+    for(const [px,py] of (punct ? punctCells(it.ch) : glyphCells(it.ch))){
+      const [dx,dy] = cellXY(gx,gy,px,py);
+      dot(dx, dy, c);
+    }
+    g.restore();
+  }
+}
+
+/* ============================================================
+   Estado (espejo del protocolo)
+   ============================================================ */
+const cfg = { periodMinutes:10, periods:4, foulLimit:5, rule24_14:true,
+              autoStop:true, useTimeouts:true, maxTimeouts:3,
+              homeName:"HOME", visitorName:"GUEST" };
+const st = { clockSec: cfg.periodMinutes*60, shotClockSec:24, period:1, running:false,
+             possession:"home", home:{score:0,fouls:0}, visitor:{score:0,fouls:0} };
+
+function fmt(s){ s=Math.max(0,s); return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0"); }
+
+const board = document.getElementById("board");
+
+/* Paso de la rejilla de cada campo, medido sobre la referencia
+   (1600 × 716) y convertido a fracción del ancho del tablero:
+   reloj 8,42 · puntos 7,45 · faltas 7,00 · posesión 6,83 ·
+   período 6,30  →  dotPx = paso / 1,40                              */
+const STEP = { clock:8.42/1600, score:7.45/1600, fouls:7.00/1600,
+               shot:6.83/1600, period:6.30/1600 };
+
+/* reloj de posesión: ≥10 s se muestra entero · <10 s con decimal ".0"
+   (como en la referencia: "24", "14", "9.0", … "0.0")              */
+const fmtShot = s => (s >= 10 ? String(s) : String(s) + ".0");
+
+function render(){
+  const W = board.clientWidth || 1120;
+  const on  = cfg.rule24_14;
+  drawReadout(document.getElementById("clockDigits"), fmt(st.clockSec), "#ffffff",
+              Math.max(1.6, W*STEP.clock/1.40), {colonColor:"#f4e64e", ghost:"#141414"});
+  drawReadout(document.getElementById("shotDigits"), fmtShot(st.shotClockSec),
+              on ? "#ec1c24" : "#3a1010", Math.max(1.5, W*STEP.shot/1.40), {ghost:"#180404"});
+  drawReadout(document.getElementById("foulsHome"),    String(st.home.fouls),    "#12d45e", Math.max(1.5, W*STEP.fouls/1.40), {ghost:"#0d1f14"});
+  drawReadout(document.getElementById("foulsVisitor"), String(st.visitor.fouls), "#12d45e", Math.max(1.5, W*STEP.fouls/1.40), {ghost:"#0d1f14"});
+  drawReadout(document.getElementById("scoreHome"),    String(st.home.score),    "#f0b400", Math.max(1.6, W*STEP.score/1.40), {ghost:"#1c1608"});
+  drawReadout(document.getElementById("scoreVisitor"), String(st.visitor.score), "#f0b400", Math.max(1.6, W*STEP.score/1.40), {ghost:"#1c1608"});
+  drawReadout(document.getElementById("periodDigits"), String(st.period),        "#12d45e", Math.max(1.5, W*STEP.period/1.40), {ghost:"#0d1f14"});
+  document.getElementById("homeName").textContent    = cfg.homeName;
+  document.getElementById("visitorName").textContent = cfg.visitorName;
+  // posesión activa resalta la flecha
+  document.getElementById("arL").classList.toggle("on", st.possession==="home");
+  document.getElementById("arR").classList.toggle("on", st.possession==="visitor");
+  // puntos de bonus (3 por equipo · están encendidos de forma permanente,
+  // como en la referencia: no dependen del contador de faltas)
+}
+
+/* ============================================================
+   Conexión al servidor de referencia (protocolo v1)
+   ============================================================ */
+const qs = new URLSearchParams(location.search);
+const MODO = qs.get("vista") === "espectador" ? "espectador" : "admin";
+const SERVER = qs.get("server") || "ws://127.0.0.1:8899";
+const INSTANCIA = qs.get("instancia") || "principal";
+const CLAVE = "marcador deviceId" + (MODO === "espectador" ? " esp" : "");
+let deviceId = localStorage.getItem(CLAVE);
+if(!deviceId){ deviceId=(MODO==="espectador"?"esp-":"adm-")+Math.random().toString(36).slice(2,8); localStorage.setItem(CLAVE,deviceId); }
+
+let ws=null, conectado=false, rol="espectador", espectadores=0, hbTimer=null;
+const $ = id=>document.getElementById(id);
+const toastEl = $("toast");
+function toast(txt){ toastEl.textContent=txt; clearTimeout(toastEl._h); toastEl._h=setTimeout(()=>toastEl.textContent="",2800); }
+function estadoUI(){
+  $("dotConn").classList.toggle("on", conectado);
+  $("connTxt").textContent = conectado ? "conectado" : "sin servidor — modo local";
+  const r=$("rolTxt"); r.textContent = conectado?rol:"modo local"; r.classList.toggle("admin", conectado&&rol==="admin");
+  $("btnClaim").disabled  = !conectado || rol==="admin";
+  $("btnResign").disabled = !conectado || rol!=="admin";
+  $("arctl").classList.toggle("on", conectado && rol==="admin");
+  $("metaTxt").textContent = conectado ? `${SERVER} · ${INSTANCIA} · espectadores: ${espectadores}` : "demo local (sin réplica)";
+}
+function enviar(m){ if(ws&&ws.readyState===1) ws.send(JSON.stringify(m)); }
+function latido(){ clearInterval(hbTimer); if(conectado&&rol==="admin") hbTimer=setInterval(()=>enviar({tipo:"heartbeat"}),3000); }
+function conectar(){
+  try{ ws=new WebSocket(SERVER); }
+  catch(e){ conectado=false; estadoUI(); console.warn("board: fallo WS "+(e&&e.message?e.message:e)); setTimeout(conectar,2500); return; }
+  ws.onopen=()=>{ conectado=true; console.log("board: WS abierto "+SERVER); estadoUI(); enviar({tipo:"join", instancia:INSTANCIA, deviceId}); };
+  ws.onclose=()=>{ conectado=false; rol="espectador"; console.log("board: WS cerrado ("+SERVER+")"); estadoUI(); latido(); setTimeout(conectar,2500); };
+  ws.onmessage=(ev)=>{
+    let m; try{ m=JSON.parse(ev.data); }catch{ return; }
+    switch(m.tipo){
+      case "welcome": rol=m.rol; Object.assign(cfg,m.config); Object.assign(st,m.state); render(); estadoUI(); latido();
+        if(m.colocacion){ Object.assign(coloc, m.colocacion); arPintar(); anclaHTML(coloc); }
+        break;
+      case "state": Object.assign(st,m.state); render(); break;
+      case "config": Object.assign(cfg,m.config); render(); break;
+      case "role":
+        if(m.granted){ rol="admin"; toast("Ahora sos el marcador"); }
+        else if(m.motivo==="ocupado") toast("El rol lo tiene otro marcador");
+        else if(m.motivo==="timeout") toast("Perdiste el rol (sin latido)");
+        else { rol="espectador"; toast("Rol entregado — ya podés reclamarlo"); }
+        estadoUI(); latido(); break;
+      case "presence": espectadores=m.espectadores||0; estadoUI(); break;
+      case "buzzer": buzzer(); break;
+      case "aviso": if(String(m.evento||"").indexOf("bonus")===0) buzzer(0.25); break;
+      case "shot-expired": buzzer(0.35); break;
+      case "colocacion":
+        // La colocación AR la aplica el lado NATIVO de la vista AR (nodos 3D);
+        // el admin refresca su panel y el espectador su overlay "ancla fija".
+        Object.assign(coloc, m.colocacion||{}); arPintar(); anclaHTML(coloc);
+        break;
+      case "fijar":
+        // El admin pidió fijar: el lado NATIVO de la vista AR (cliente WS con
+        // sesión ARCore) captura la pose WGS84 del ancla y la reporta con geo.
+        break;
+      case "error": toast(m.message||m.code||"error"); break;
+    }
+  };
+}
+$("btnClaim").onclick = ()=>enviar({tipo:"claim"});
+$("btnResign").onclick= ()=>enviar({tipo:"resign"});
+$("btnHelp").onclick  = ()=>toast("Toca cada campo para editarlo. Mantén para corregir.");
+$("btnSpk").onclick   = ()=>accion({op:"buzzer"});
+
+/* ============================================================
+   Relojes (local; conectado los gobierna el servidor)
+   ============================================================ */
+let timer=null;
+function tick(){
+  if(st.clockSec>0){
+    st.clockSec--;
+    if(cfg.rule24_14 && st.shotClockSec>0) st.shotClockSec--;
+  } else {
+    st.running=false; clearInterval(timer); if(cfg.autoStop) buzzer();
+  }
+  if(cfg.rule24_14 && st.shotClockSec===0) buzzer(0.35);
+  render();
+}
+function toggleClock(){ accion({op:"clock", op2: st.running?"pause":"start"}); }
+
+/* Despacho: al servidor si hay conexión; si no, reducer local */
+function accion(cmd){
+  if(conectado){
+    if(rol!=="admin"){ toast("Solo el admin alimenta el marcador"); return; }
+    enviar({tipo:"cmd", cmd}); return;
+  }
+  const ev=aplicarLocal(cmd); render();
+  for(const e of ev){ if(e==="buzzer") buzzer(); else buzzer(0.25); }
+}
+function aplicarLocal(cmd){
+  const ev=[]; const eq=t=> t==="visitor"?st.visitor:st.home;
+  switch(cmd.op){
+    case "score+": eq(cmd.team).score += (cmd.delta||1);
+      st.possession = cmd.team==="home"?"visitor":"home";
+      if(cfg.rule24_14) st.shotClockSec=24; break;
+    case "score-": eq(cmd.team).score = Math.max(0, eq(cmd.team).score-1); break;
+    case "foul+": { const e=eq(cmd.team); e.fouls++; if(e.fouls===cfg.foulLimit) ev.push("bonus-"+cmd.team); break; }
+    case "pos": st.possession = cmd.team; break;
+    case "shot": if(!cfg.rule24_14) break;
+      st.shotClockSec = cmd.op2==="reset14" ? 14 : 24; break;
+    case "period": if(cmd.op2==="next"){
+        if(st.period<cfg.periods){ st.period++; st.clockSec=cfg.periodMinutes*60;
+          if(cfg.rule24_14) st.shotClockSec=24;
+          st.home.fouls=0; st.visitor.fouls=0; st.running=false; clearInterval(timer); }
+        else ev.push("buzzer");
+      } break;
+    case "buzzer": ev.push("buzzer"); break;
+    case "clock":
+      if(cmd.op2==="start"){ st.running=true; clearInterval(timer); timer=setInterval(tick,1000); }
+      else if(cmd.op2==="pause"){ st.running=false; clearInterval(timer); }
+      else if(cmd.op2==="reset"){ st.running=false; clearInterval(timer);
+        st.clockSec=cfg.periodMinutes*60; if(cfg.rule24_14) st.shotClockSec=24; }
+      break;
+    case "state": st.clockSec=cfg.periodMinutes*60; st.shotClockSec=cfg.rule24_14?24:0;
+      st.period=1; st.running=false; st.home={score:0,fouls:0}; st.visitor={score:0,fouls:0};
+      st.possession="home"; clearInterval(timer); break;
+  }
+  return ev;
+}
+
+/* Buzzer */
+let AC=null;
+function buzzer(dur=0.9){
+  try{
+    AC = AC || new (window.AudioContext||window.webkitAudioContext)();
+    const o=AC.createOscillator(), g=AC.createGain();
+    o.type="square"; o.frequency.value=180; g.gain.value=0.15;
+    o.connect(g); g.connect(AC.destination); o.start(); o.stop(AC.currentTime+dur);
+  }catch(e){}
+}
+
+/* ============================================================
+   Los campos son los botones: tap = acción, mantener = corregir
+   ============================================================ */
+function tap(a){
+  switch(a){
+    case "clock": toggleClock(); break;
+    case "foul+home": accion({op:"foul+", team:"home"}); break;
+    case "foul+visitor": accion({op:"foul+", team:"visitor"}); break;
+    case "score+home": accion({op:"score+", team:"home"}); break;
+    case "score+visitor": accion({op:"score+", team:"visitor"}); break;
+    case "shot": accion({op:"shot", op2:"reset24"}); break;
+    case "pos-home": accion({op:"pos", team:"home"}); break;
+    case "pos-visitor": accion({op:"pos", team:"visitor"}); break;
+    case "period+":
+      if(st.running){ toast("Detén el reloj para cambiar de período"); break; }
+      accion({op:"period", op2:"next"}); break;
+  }
+}
+function longPress(a){
+  if(a==="score+home") accion({op:"score-", team:"home"});
+  else if(a==="score+visitor") accion({op:"score-", team:"visitor"});
+  else if(a==="shot") accion({op:"shot", op2:"reset14"});
+}
+let lpTimer=null, lpFired=false;
+board.addEventListener("pointerdown", e=>{
+  const f=e.target.closest("[data-act]"); if(!f) return;
+  lpFired=false; clearTimeout(lpTimer);
+  lpTimer=setTimeout(()=>{ lpFired=true; longPress(f.dataset.act); }, 550);
+});
+board.addEventListener("pointerup", e=>{
+  clearTimeout(lpTimer);
+  const f=e.target.closest("[data-act]"); if(!f) return;
+  if(!lpFired) tap(f.dataset.act);
+});
+board.addEventListener("pointerleave", ()=>clearTimeout(lpTimer));
+board.addEventListener("contextmenu", e=>{ if(e.target.closest("[data-act]")) e.preventDefault(); });
+
+/* ============================================================
+   SETTINGS
+   ============================================================ */
+const overlay=$("overlay");
+function openSetup(){
+  if(conectado && rol!=="admin"){ toast("Solo el admin abre SETTINGS"); return; }
+  inMin.value=cfg.periodMinutes; inPeriods.value=cfg.periods; inFouls.value=cfg.foulLimit;
+  inHome.value=cfg.homeName; inVisitor.value=cfg.visitorName; inRule.checked=cfg.rule24_14;
+  inAutoStop.checked=cfg.autoStop; inToChk.checked=cfg.useTimeouts;
+  const r=document.querySelector(`input[name=to][value="${cfg.maxTimeouts}"]`); if(r) r.checked=true;
+  markFont();
+  overlay.classList.add("open");
+}
+$("btnGear").onclick = openSetup;
+function markFont(){ document.querySelectorAll("#fontOpts .f").forEach(b=>b.classList.toggle("sel", +b.dataset.f===fontVar)); }
+document.getElementById("fontOpts").addEventListener("click", e=>{
+  const b=e.target.closest(".f"); if(!b) return;
+  fontVar=+b.dataset.f; markFont(); render();
+});
+$("btnCancel").onclick = ()=>overlay.classList.remove("open");
+$("btnResetAll").onclick = ()=>{ // restaura el FORMULARIO (no toca el partido)
+  inMin.value=10; inPeriods.value=4; inFouls.value=5; inHome.value="HOME"; inVisitor.value="GUEST";
+  inRule.checked=true; inAutoStop.checked=true; inToChk.checked=true; to3.checked=true;
+};
+$("btnSave").onclick = ()=>{
+  const nueva = {
+    periodMinutes: Math.max(1,+inMin.value||10), periods: Math.max(1,+inPeriods.value||4),
+    foulLimit: Math.max(1,+inFouls.value||5),
+    homeName:(inHome.value||"HOME").toUpperCase(), visitorName:(inVisitor.value||"GUEST").toUpperCase(),
+    rule24_14: inRule.checked, autoStop: inAutoStop.checked, useTimeouts: inToChk.checked,
+    maxTimeouts: +(document.querySelector("input[name=to]:checked")||{value:3}).value
+  };
+  if(conectado){ accion({op:"setup", config:nueva}); }
+  else {
+    Object.assign(cfg, nueva);
+    st.clockSec = cfg.periodMinutes*60;
+    st.shotClockSec = cfg.rule24_14 ? Math.max(st.shotClockSec,24) : 0;
+    render();
+  }
+  overlay.classList.remove("open");
+};
+
+/* ============================================================
+   CONTROL AR (admin): posiciona el tablero 3D para los espectadores
+   ============================================================ */
+const coloc = { ancho:9, alto:6, x:0, y:11, z:0, rot:0, inc:0, geo:null };
+const ARCAMPOS = { ancho:"arAncho", alto:"arAlto", y:"arY", x:"arX", z:"arZ", rot:"arRot", inc:"arInc" };
+function arPintar(){
+  for(const [k,id] of Object.entries(ARCAMPOS)){ const el=$(id); if(el) el.value = Math.round(coloc[k]*100)/100; }
+  const g=$("arGeoTxt"), fijar=$("btnFijar"), liberar=$("btnLiberarGeo");
+  if(coloc.geo){
+    g.innerHTML = `&#128205; fijada: <b>${coloc.geo.lat.toFixed(5)}, ${coloc.geo.lon.toFixed(5)}</b> · ${Math.round(coloc.geo.alt)} m`;
+    fijar.disabled = true; liberar.disabled = false;
+  } else {
+    g.textContent = "posición temporal — no sobrevive al reinicio";
+    fijar.disabled = false; liberar.disabled = true;
+  }
+}
+/* Envía SOLO el campo cambiado (merge parcial en el servidor). */
+function arEnviar(cambios){
+  if(!conectado){ toast("Sin servidor no se puede posicionar"); return; }
+  if(rol!=="admin"){ toast("Solo el admin posiciona el tablero"); return; }
+  Object.assign(coloc, cambios);
+  arPintar();
+  enviar({tipo:"cmd", cmd:Object.assign({op:"place"}, cambios)});
+}
+/* Normaliza por campo: el giro da la vuelta (0–359); la inclinación se acota
+   a ±80° para no dejar el tablero boca abajo. */
+function arNorm(k,v){
+  if(k==="rot") return ((v%360)+360)%360;
+  if(k==="inc") return Math.max(-80, Math.min(80, v));
+  if(k==="alto") return Math.max(0.5, v);   // el alto del tablero nunca < 0.5 m
+  return v;
+}
+document.getElementById("arctl").addEventListener("click", e=>{
+  const b=e.target.closest("button[data-ar]"); if(!b) return;
+  const k=b.dataset.ar, d=parseFloat(b.dataset.d);
+  const v=Math.round((coloc[k]+d)*100)/100;
+  arEnviar({[k]:arNorm(k,v)});
+});
+for(const [k,id] of Object.entries(ARCAMPOS)){
+  $(id).addEventListener("change", ()=>{
+    const v=parseFloat($(id).value); if(isNaN(v)){ arPintar(); return; }
+    arEnviar({[k]:arNorm(k,v)});
+  });
+}
+$("btnFijar").onclick   = ()=>{ if(conectado&&rol==="admin"){ toast("Pidiendo coordenadas a la vista AR…"); enviar({tipo:"cmd", cmd:{op:"place", geo:"fijar"}}); } };
+$("btnLiberarGeo").onclick = ()=>arEnviarGeo(null);
+function arEnviarGeo(g){
+  if(rol!=="admin"){ toast("Solo el admin fija la posición"); return; }
+  coloc.geo=g; arPintar();
+  enviar({tipo:"cmd", cmd:{op:"place", geo:g===null?null:g}});
+}
+/* El servidor responde a "fijar" con un broadcast; la vista AR captura las
+   coordenadas y las manda de vuelta como place con geo. */
+
+/* El overlay "ancla fija" del espectador (si existe) refleja la colocación
+   real del servidor — la pinta el lado nativo de VistaAr vía evaluateJavascript. */
+function anclaHTML(col){
+  if(window.actualizarAncla) actualizarAncla(col.x, col.y, col.z);
+}
+
+addEventListener("resize", render);
+render(); estadoUI(); arPintar(); conectar();
+
+/* Modo espectador: mismo tablero, sin input — queda como ancla fija en el espacio */
+if(MODO==="espectador"){
+  document.querySelectorAll(".icn").forEach(el=>el.style.display="none");
+  document.querySelectorAll("[data-act]").forEach(el=>{ el.style.pointerEvents="none"; });
+  $("btnClaim").style.display="none"; $("btnResign").style.display="none";
+  $("rolTxt").textContent="vista AR · solo lectura";
+  const overlayAncla=document.createElement("div");
+  overlayAncla.textContent="\uD83D\uDCCD ancla fija · x 0.0   y 2.0   z 0.0 m";
+  overlayAncla.style.cssText="position:absolute;left:1.5%;bottom:1.5%;z-index:6;font-size:clamp(7px,1.25cqw,12px);"+
+    "color:#7d838c;background:rgba(0,0,0,.45);padding:.22em .55em;border-radius:5px;letter-spacing:.03em;pointer-events:none";
+  board.appendChild(overlayAncla);
+  /* El lado NATIVO (VistaAr) llama esto vía evaluateJavascript cuando cambia
+     la colocación del servidor, para que el overlay muestre x/y/z reales. */
+  window.actualizarAncla = (x,y,z)=>{
+    overlayAncla.textContent="\uD83D\uDCCD ancla fija · x "+(+x).toFixed(1)+"   y "+(+y).toFixed(1)+"   z "+(+z).toFixed(1)+" m";
+  };
+}
+</script>
+</body>
+</html>

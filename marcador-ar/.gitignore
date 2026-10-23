@@ -1,0 +1,16 @@
+# Android / Gradle
+.gradle/
+build/
+local.properties
+*.apk
+*.aab
+*.keystore
+.idea/
+captures/
+
+# Node (refserver)
+node_modules/
+
+# Varios
+*.log
+.DS_Store

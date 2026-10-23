@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Necesario para el WebSocket (cliente espectador y servidor embebido del admin). -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Necesario para la vista AR (ARCore). -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Geospatial API: ubicación para fijar el tablero con coordenadas WGS84. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-feature android:name="android.hardware.camera.ar" android:required="true" />
+
+    <application
+        android:allowBackup="true"
+        android:label="Marcador AR"
+        android:supportsRtl="true"
+        android:usesCleartextTraffic="true"
+        android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen">
+        <!-- ARCore: la app requiere ARCore instalado (se instala desde Play Store si falta). -->
+        <meta-data
+            android:name="com.google.ar.core"
+            android:value="required"
+            tools:replace="android:value" />
+        <!-- Geospatial API: la key viene de AR_GEOSPATIAL_KEY (env o local.properties).
+             Sin key, el modo geospatial falla con ERROR_NOT_AUTHORIZED y la app
+             sigue funcionando en modo temporal (colocación sin fijar). -->
+        <meta-data
+            android:name="com.google.ar.core.geospatial_api_key"
+            android:value="${arGeospatialKey}" />
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <!-- Vista AR del espectador (tablero 3D anclado a la cancha).
+             configChanges: la recreación destruiría el ancla ARCore y el tablero
+             "desaparecería" al rotar; la activity maneja la rotación ella misma. -->
+        <activity
+            android:name=".VistaAr"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|density|uiMode"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" />
+    </application>
+
+</manifest>
