@@ -46,11 +46,9 @@ alta → el build continuaba sin cliente.
   SDK ya está, serían minutos) — **con el usuario presente**, no de madrugada.
 
 **Pendientes**
-- [ ] **Veredicto del monitor**: APK generado → siguiente paso instalar en el
-      Vivo; sin APK → relanzar build con heaps acotados.
-- [ ] Instalar en Vivo V2436 cuando esté disponible: `usbipd attach --wsl` →
-      `adb install -r .../app-debug.apk` → E2E **modo tap** (sin
-      `AR_GEOSPATIAL_KEY`), guiado por `marcador-ar/ESTADO-SESION.md`.
+- [ ] E2E en vivo con el Vivo cuando esté disponible: `usbipd attach --wsl`
+      (PowerShell **admin**, celular desbloqueado) → `adb install -r app-debug.apk`
+      → guiado por `marcador-ar/ESTADO-SESION.md`, modo tap.
 - [ ] Considerar `.wslconfig` (`memory=6GB`) si se repiten muertes por memoria.
 
 **Verificación**
@@ -59,3 +57,28 @@ wsl -d Ubuntu -e bash -c "free -h; ls /mnt/c/Users/kutzm/Documents/GitHub/xr-su/
 # relanzar build si hace falta:
 wsl -d Ubuntu -e bash /mnt/c/Users/kutzm/AppData/Local/Temp/opencode/marcador-setup.sh
 ```
+
+## 2026-10-23 09:39 — BUILD OK: APK verificado + 182 tests verdes
+
+**Qué se hizo** — Tras el fallo transitorio HTTP/2 de `dl.google.com` (script
+endurecido: salta la descarga de cmdline-tools si ya existe + `curl --http1.1
+--retry 5`), Gradle falló dos veces y en la tercera salió verde: `BUILD
+SUCCESSFUL in 1m 32s` (73 tareas). Verificado con `aapt2 dump badging`
+(paquete `com.marcadorar.app`, label «Marcador AR», compileSdk 36) y con
+`test-results`: **182 tests (91×2 variantes), 0 failures, 0 errors**.
+APK: `app/build/outputs/apk/debug/app-debug.apk` (46,6 MB).
+
+**Errores míos**
+1. `android.useAndroidX=true` no existía en ningún sitio de esta máquina: en la
+   otra vivía en el **gradle de usuario** (`~/.gradle/gradle.properties` de
+   `kutzmanich`), que no viajó con la copia del proyecto; mi `gradle.properties`
+   nuevo solo traía los límites de memoria. El task `checkDebugAarMetadata` lo
+   exigió. **Lección: al migrar un proyecto Android a otra máquina, revisar
+   también la configuración de Gradle de usuario, no solo la del repo.**
+2. (Corrección de ayer) el «APK de 21:57» del daemon huérfano era **fantasma**:
+   transitorio y sin `test-results`. La verificación correcta es
+   `aapt2 dump badging` + contar `test-results/*.xml`, no un `ls` del APK.
+
+**Pendientes**
+- [x] Build verde con heaps acotados (1,5 G) — sin OOM ni muerte de daemon.
+- [ ] E2E en vivo con el Vivo V2436 (pendiente de que el usuario lo conecte).
