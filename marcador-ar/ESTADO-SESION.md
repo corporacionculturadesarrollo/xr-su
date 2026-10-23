@@ -1,5 +1,12 @@
 # Estado de sesión — 2026-10-13 (pausa del usuario)
 
+> **Actualización 2026-10-22** (otra máquina): entorno reconstruido en WSL
+> (root, SDK en `/root/Android/Sdk`) y build re-lanzado tras fallo del daemon;
+> APK pendiente de confirmar. Detalle y comandos nuevos en
+> `docs/sesiones/2026-10-22-entorno-build-marcador.md`. Los comandos de abajo
+> usan rutas de la máquina antigua (`$HOME/jdk17`, `$HOME/Android/Sdk`) —
+> ajustar a `/root/...` aquí.
+
 ## Dónde estábamos
 Sistema de marcador AR completo y compilando verde. App Kotlin única
 (`10AF6F0AQF0045A`, Vivo V2436, Android 16): admin posiciona/ajusta el tablero;
